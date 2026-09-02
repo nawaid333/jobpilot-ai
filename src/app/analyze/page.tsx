@@ -8,6 +8,8 @@ type Analysis = {
   candidate: { name: string | null; headline: string | null; location: string | null };
   summary: string;
   skills: string[];
+  experience: { role: string; company: string; duration: string; highlights: string[] }[];
+  education: { degree: string; institution: string; year: string }[];
   strengths: string[];
   improvements: { priority: "high" | "medium" | "low"; issue: string; recommendation: string }[];
   atsChecks: { name: string; status: "pass" | "warning" | "fail"; detail: string }[];
@@ -21,11 +23,11 @@ export default function AnalyzePage() {
   const [dragging, setDragging] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
   function chooseFile(selected: File | undefined) {
-    setError("");
-    setAnalysis(null);
+    setError(""); setAnalysis(null); setSaved(false);
     if (!selected) return;
     if (!ACCEPTED.includes(selected.type)) return setError("Please upload a PDF or DOCX file.");
     if (selected.size > 8 * 1024 * 1024) return setError("Your CV must be smaller than 8 MB.");
@@ -48,12 +50,18 @@ export default function AnalyzePage() {
     } finally { setAnalyzing(false); }
   }
 
+  function saveProfile() {
+    if (!analysis) return;
+    localStorage.setItem("jobpilot-career-profile", JSON.stringify({ ...analysis, savedAt: new Date().toISOString() }));
+    setSaved(true);
+  }
+
   return (
     <main className="analyze-page">
       <nav className="nav shell">
         <Link className="brand" href="/"><span className="brand-mark">✦</span>JobPilot<span className="brand-ai">AI</span></Link>
         <span className="analyze-nav-label">CV INTELLIGENCE</span>
-        <Link className="nav-cta" href="/">Back to home ↗</Link>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}><Link className="nav-cta" href="/profile">Career profile ↗</Link><Link className="nav-cta" href="/">Home ↗</Link></div>
       </nav>
 
       {!analysis ? (
@@ -87,7 +95,11 @@ export default function AnalyzePage() {
             <article className="result-panel wide"><small className="kicker">HIGHEST-IMPACT IMPROVEMENTS</small>{analysis.improvements.map((item, index) => <div className="improvement" key={`${item.issue}-${index}`}><span className={`priority ${item.priority}`}>{item.priority}</span><div><b>{item.issue}</b><p>{item.recommendation}</p></div></div>)}</article>
             <article className="result-panel wide"><small className="kicker">STRENGTHS</small><ul>{analysis.strengths.map((strength) => <li key={strength}>✓ {strength}</li>)}</ul></article>
           </div>
-          <button className="button secondary" onClick={() => { setAnalysis(null); setFile(null); }}>Analyze another CV</button>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <button className="button primary" onClick={saveProfile}>{saved ? "✓ Saved to Career Profile" : "Save to Career Profile ↗"}</button>
+            {saved && <Link className="button secondary" href="/profile">Open Career Profile ↗</Link>}
+            <button className="button secondary" onClick={() => { setAnalysis(null); setFile(null); setSaved(false); }}>Analyze another CV</button>
+          </div>
         </section>
       )}
       <footer className="analyze-footer shell"><span>✦ JobPilot AI</span><span>Private CV workflow</span><span>Built for real fit, not fake keywords.</span></footer>
