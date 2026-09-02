@@ -126,24 +126,29 @@ model GmailConnection {
 }
 
 model EmailSignal {
-  id             String   @id @default(cuid())
-  userId         String
-  jobId          String?
-  applicationId  String?
-  gmailMessageId String
-  threadId       String?
-  sender         String?
-  subject        String?
-  receivedAt     DateTime?
-  category       String
-  confidence     Float
+  id              String   @id @default(cuid())
+  userId          String
+  jobId           String?
+  applicationId   String?
+  gmailMessageId  String
+  threadId        String?
+  sender          String?
+  subject         String?
+  receivedAt      DateTime?
+  category        String
+  confidence      Float
   suggestedStatus String?
-  reason         String
-  applied        Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job            Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  application    Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  reason          String
+  recruiterName   String?
+  recruiterEmail  String?
+  matchedScore    Float?
+  matchMethod     String?
+  ambiguous       Boolean  @default(false)
+  applied         Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job             Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  application     Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   @@unique([userId, gmailMessageId])
   @@index([userId, category])
   @@index([applicationId])
