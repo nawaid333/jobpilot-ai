@@ -33,7 +33,7 @@ JobPilot supports controlled automation for preparation and follow-up workflows,
 
 ## Payments
 
-Payments are intentionally disabled while JobPilot is in development and testing. Do not enable billing until the complete product and billing flow have been explicitly tested and approved.
+Payments are intentionally disabled while JobPilot is in development and testing. Do not enable billing until the complete product and billing flow has been explicitly tested and approved.
 
 ## Technology
 
