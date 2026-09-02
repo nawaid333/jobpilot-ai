@@ -12,25 +12,27 @@ Help job seekers turn a CV into a structured career profile, discover genuinely 
 - Use authorized job and application channels.
 - Keep high-impact actions under user control unless explicitly enabled.
 
-## Planned MVP
+## Current product flow
 1. Landing page
-2. Authentication
-3. CV upload and parsing
-4. ATS/resume quality analysis
-5. Master career profile
-6. Job preferences
-7. Job matching with explanations
-8. Tailored CV generation
-9. Cover-letter generation
-10. Application tracker
+2. CV upload and AI analysis
+3. ATS/resume quality analysis
+4. Master career profile
+5. Job preferences
+6. Job discovery from public Lever postings
+7. Evidence-based job matching
+8. Tailored application package
+9. Application tracker
+
+## Persistence foundation
+PostgreSQL + Prisma is now defined for account-owned career profiles, job preferences, normalized jobs and applications. The current UI still uses localStorage until authentication and authenticated Prisma API routes are added.
+
+See `docs/PERSISTENCE.md` for the migration plan.
 
 ## Planned stack
 - Next.js + TypeScript
-- Tailwind CSS
-- Python/FastAPI
-- PostgreSQL
+- PostgreSQL + Prisma
 - Redis/background jobs
 - OpenAI API
 
 ## Status
-Early development — product foundation in progress.
+MVP product workflow built; persistence and authentication next.
