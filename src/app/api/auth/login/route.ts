@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { hashPassword, verifyPassword, sessionCookieName, sessionExpiry } from "@/lib/auth";
+import { hashPassword, verifyPassword, sessionCookieName, sessionExpiry, sessionCookieOptions, cleanupExpiredSessions } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,10 +19,11 @@ export async function POST(request: NextRequest) {
     }
     if (!valid) return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
 
+    await cleanupExpiredSessions();
     const expiresAt = sessionExpiry();
     const session = await prisma.session.create({ data: { userId: user.id, expiresAt } });
     const response = NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } });
-    response.cookies.set(sessionCookieName(), session.id, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", expires: expiresAt });
+    response.cookies.set(sessionCookieName(), session.id, sessionCookieOptions(expiresAt));
     return response;
   } catch { return NextResponse.json({ error: "Unable to sign in." }, { status: 400 }); }
 }
