@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 type LeverPosting = {
   id: string; text: string;
@@ -47,6 +48,10 @@ async function fetchLiveJobs() {
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = rateLimit(`jobs-recommend:${user.id}`, 30, 60_000);
+  const response = rateLimitResponse(limited);
+  if (response) return response;
+
   const [profile, preferences, applications, live] = await Promise.all([
     prisma.careerProfile.findUnique({ where: { userId: user.id } }),
     prisma.jobPreferences.findUnique({ where: { userId: user.id } }),
