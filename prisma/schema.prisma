@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String?
+  image        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  profile      CareerProfile?
+  preferences  JobPreferences?
+  applications Application[]
+}
+
+model CareerProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  atsScore    Int      @default(0)
+  headline    String?
+  location    String?
+  summary     String   @default("")
+  skills      Json
+  targetRoles Json
+  experience  Json
+  education   Json
+  strengths   Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model JobPreferences {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  roles      String   @default("")
+  locations  String   @default("")
+  workMode   String   @default("Any")
+  seniority  String   @default("Any")
+  minSalary  String   @default("")
+  keywords   String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Job {
+  id             String        @id
+  title          String
+  company        String
+  location       String
+  mode           String?
+  level          String?
+  source         String?
+  salary         String?
+  url            String?
+  description    String?
+  skills         Json
+  firstSeenAt    DateTime      @default(now())
+  lastSeenAt     DateTime      @updatedAt
+  applications   Application[]
+}
+
+model Application {
+  id          String   @id @default(cuid())
+  userId      String
+  jobId       String
+  status      String   @default("Saved")
+  notes       String   @default("")
+  appliedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  @@unique([userId, jobId])
+  @@index([userId, status])
+}
