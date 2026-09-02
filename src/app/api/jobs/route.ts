@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 type LeverPosting = {
   id: string;
@@ -10,7 +11,16 @@ type LeverPosting = {
   salaryDescription?: string;
 };
 
-export async function GET() {
+function clientKey(request: Request) {
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return forwarded || request.headers.get("x-real-ip") || "anonymous";
+}
+
+export async function GET(request: Request) {
+  const limited = rateLimit(`jobs-public:${clientKey(request)}`, 30, 60_000);
+  const rateResponse = rateLimitResponse(limited);
+  if (rateResponse) return rateResponse;
+
   const companies = (process.env.JOBPILOT_LEVER_COMPANIES || "").split(",").map(x => x.trim()).filter(Boolean).slice(0, 20);
   if (!companies.length) return NextResponse.json({ jobs: [], configured: false, message: "Configure JOBPILOT_LEVER_COMPANIES with public Lever company slugs." });
 
