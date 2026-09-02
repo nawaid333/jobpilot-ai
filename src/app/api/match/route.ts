@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 type Job = { title?: string; company?: string; location?: string; mode?: string; level?: string; description?: string; skills?: string[]; salary?: string };
 
@@ -7,6 +9,13 @@ function terms(value: string) { return value.toLowerCase().split(/[^a-z0-9+#.-]+
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const limited = rateLimit(`match:${user.id}`, 60, 60_000);
+    const limitedResponse = rateLimitResponse(limited);
+    if (limitedResponse) return limitedResponse;
+
     const body = await request.json() as { profile?: { summary?: string; skills?: string[]; targetRoles?: string[]; experience?: { role?: string; highlights?: string[] }[] }; preferences?: { roles?: string; locations?: string; workMode?: string; seniority?: string; keywords?: string }; job?: Job };
     const profile = body.profile || {};
     const preferences = body.preferences || {};
