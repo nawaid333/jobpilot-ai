@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     const prefTerms = [preferences.roles || "", preferences.keywords || ""].flatMap(terms);
     const jobTerms = new Set(terms(jobText));
     const matchedSkills = [...new Set([...profileTerms, ...prefTerms].filter(t => jobTerms.has(t)))].slice(0, 12);
-    const missingSignals = [...new Set((job.skills || []).filter(skill => !profileTerms.some(t => normalize(skill).includes(t) || t.includes(normalize(skill))))].slice(0, 8);
+    const missingSignals = [...new Set((job.skills || []).filter(skill => !profileTerms.some(t => normalize(skill).includes(t) || t.includes(normalize(skill)))))].slice(0, 8);
     const locationMatch = !preferences.locations || terms(preferences.locations).some(t => normalize(job.location).includes(t));
     const modeMatch = !preferences.workMode || preferences.workMode === "Any" || normalize(job.mode) === normalize(preferences.workMode);
     const base = 45 + Math.min(35, matchedSkills.length * 5) + (locationMatch ? 10 : 0) + (modeMatch ? 10 : 0);
