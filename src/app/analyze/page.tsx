@@ -1,7 +1,18 @@
 "use client";
 
-import { ChangeEvent, DragEvent, useState } from "react";
+import { ChangeEvent, useState } from "react";
 import Link from "next/link";
+
+type Analysis = {
+  atsScore: number;
+  candidate: { name: string | null; headline: string | null; location: string | null };
+  summary: string;
+  skills: string[];
+  strengths: string[];
+  improvements: { priority: "high" | "medium" | "low"; issue: string; recommendation: string }[];
+  atsChecks: { name: string; status: "pass" | "warning" | "fail"; detail: string }[];
+  targetRoles: string[];
+};
 
 const ACCEPTED = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
 
@@ -9,104 +20,77 @@ export default function AnalyzePage() {
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [complete, setComplete] = useState(false);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState("");
 
   function chooseFile(selected: File | undefined) {
     setError("");
-    setComplete(false);
+    setAnalysis(null);
     if (!selected) return;
-    if (!ACCEPTED.includes(selected.type)) {
-      setError("Please upload a PDF or DOCX file.");
-      return;
-    }
-    if (selected.size > 8 * 1024 * 1024) {
-      setError("Your CV must be smaller than 8 MB.");
-      return;
-    }
+    if (!ACCEPTED.includes(selected.type)) return setError("Please upload a PDF or DOCX file.");
+    if (selected.size > 8 * 1024 * 1024) return setError("Your CV must be smaller than 8 MB.");
     setFile(selected);
   }
 
-  function onInput(event: ChangeEvent<HTMLInputElement>) {
-    chooseFile(event.target.files?.[0]);
-  }
+  function onInput(event: ChangeEvent<HTMLInputElement>) { chooseFile(event.target.files?.[0]); }
 
-  function onDrop(event: DragEvent<HTMLLabelElement>) {
-    event.preventDefault();
-    setDragging(false);
-    chooseFile(event.dataTransfer.files?.[0]);
-  }
-
-  function analyze() {
+  async function analyze() {
     if (!file) return;
-    setAnalyzing(true);
-    setComplete(false);
-    window.setTimeout(() => {
-      setAnalyzing(false);
-      setComplete(true);
-    }, 1400);
+    setAnalyzing(true); setError("");
+    try {
+      const body = new FormData(); body.append("file", file);
+      const response = await fetch("/api/analyze-cv", { method: "POST", body });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Analysis failed.");
+      setAnalysis(data.analysis);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
+    } finally { setAnalyzing(false); }
   }
 
   return (
     <main className="analyze-page">
       <nav className="nav shell">
-        <Link className="brand" href="/">
-          <span className="brand-mark">✦</span>JobPilot<span className="brand-ai">AI</span>
-        </Link>
-        <span className="analyze-nav-label">CV ANALYZER · STEP 1 OF 3</span>
+        <Link className="brand" href="/"><span className="brand-mark">✦</span>JobPilot<span className="brand-ai">AI</span></Link>
+        <span className="analyze-nav-label">CV INTELLIGENCE</span>
         <Link className="nav-cta" href="/">Back to home ↗</Link>
       </nav>
 
-      <section className="analyze-shell shell">
-        <div className="analyze-intro">
-          <div className="eyebrow"><span className="pulse" /> Private by design</div>
-          <h1>Let&apos;s understand<br /><em>your CV.</em></h1>
-          <p>Upload your latest CV and JobPilot will prepare it for intelligent job matching. We&apos;ll identify what is strong, what can be improved, and what we should never invent.</p>
-        </div>
-
-        <div className="upload-card">
-          <label
-            className={`dropzone ${dragging ? "dragging" : ""} ${file ? "has-file" : ""}`}
-            onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
-          >
-            <input type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={onInput} />
-            {file ? (
-              <div className="file-selected">
-                <div className="file-icon">PDF</div>
-                <div className="file-copy"><strong>{file.name}</strong><span>{(file.size / 1024 / 1024).toFixed(2)} MB · Ready to analyze</span></div>
-                <span className="file-check">✓</span>
-              </div>
-            ) : (
-              <>
-                <div className="upload-icon">↑</div>
-                <strong>Drop your CV here</strong>
-                <span>or <u>browse your computer</u></span>
-                <small>PDF or DOCX · Maximum 8 MB</small>
-              </>
-            )}
-          </label>
-
-          {error && <p className="upload-error">{error}</p>}
-
-          <div className="privacy-row"><span>⌁</span><p>Your file is used only for your JobPilot analysis. We&apos;ll never add experience or skills that aren&apos;t in your CV.</p></div>
-
-          <button className="button primary analyze-button" onClick={analyze} disabled={!file || analyzing}>
-            {analyzing ? <><span className="spinner" /> Analyzing your CV…</> : complete ? <>Analysis complete ✓</> : <>Analyze my CV ↗</>}
-          </button>
-
-          {complete && (
-            <div className="analysis-preview">
-              <div><span className="success-dot" /><strong>CV successfully processed</strong></div>
-              <p>Your next step will be a structured profile with ATS insights, skills, experience and improvement opportunities.</p>
-              <div className="preview-stats"><span><b>87</b><small>CV quality</small></span><span><b>14</b><small>Skills found</small></span><span><b>6</b><small>Improvement areas</small></span></div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <footer className="analyze-footer shell"><span>✦ JobPilot AI</span><span>Secure CV workflow</span><span>Built for real fit, not fake keywords.</span></footer>
+      {!analysis ? (
+        <section className="analyze-shell shell">
+          <div className="analyze-intro">
+            <div className="eyebrow"><span className="pulse" /> Private by design</div>
+            <h1>Know exactly how strong<br /><em>your CV is.</em></h1>
+            <p>Upload your CV and JobPilot will extract your real career information, evaluate ATS readiness, and identify the highest-impact improvements.</p>
+          </div>
+          <div className="upload-card">
+            <label className={`dropzone ${dragging ? "dragging" : ""} ${file ? "has-file" : ""}`}
+              onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFile(event.dataTransfer.files?.[0]); }}>
+              <input type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={onInput} />
+              {file ? <div className="file-selected"><div className="file-icon">CV</div><div className="file-copy"><strong>{file.name}</strong><span>{(file.size / 1024 / 1024).toFixed(2)} MB · Ready to analyze</span></div><span className="file-check">✓</span></div> : <><div className="upload-icon">↑</div><strong>Drop your CV here</strong><span>or <u>browse your computer</u></span><small>PDF or DOCX · Maximum 8 MB</small></>}
+            </label>
+            {error && <p className="upload-error">{error}</p>}
+            <div className="privacy-row"><span>⌁</span><p>Your CV is sent to the configured AI analysis service only when you click analyze. JobPilot never invents experience, skills, education, or achievements.</p></div>
+            <button className="button primary analyze-button" onClick={analyze} disabled={!file || analyzing}>{analyzing ? <><span className="spinner" /> Analyzing your CV…</> : <>Analyze my CV ↗</>}</button>
+          </div>
+        </section>
+      ) : (
+        <section className="results-shell shell">
+          <div className="results-top"><div><div className="kicker">YOUR CV ANALYSIS</div><h1>{analysis.candidate.name || "Candidate"}</h1><p>{analysis.candidate.headline || "Career profile extracted from your CV"}{analysis.candidate.location ? ` · ${analysis.candidate.location}` : ""}</p></div><div className="score-card"><small>ATS READINESS</small><strong>{analysis.atsScore}<span>/100</span></strong></div></div>
+          <div className="result-grid">
+            <article className="result-panel wide"><small className="kicker">SUMMARY</small><p>{analysis.summary}</p></article>
+            <article className="result-panel"><small className="kicker">TARGET ROLES</small><div className="chips">{analysis.targetRoles.map((role) => <span key={role}>{role}</span>)}</div></article>
+            <article className="result-panel"><small className="kicker">SKILLS FOUND</small><div className="chips">{analysis.skills.map((skill) => <span key={skill}>{skill}</span>)}</div></article>
+            <article className="result-panel wide"><small className="kicker">ATS CHECKS</small>{analysis.atsChecks.map((check) => <div className="check-row" key={check.name}><b>{check.name}</b><span className={`status ${check.status}`}>{check.status}</span><small>{check.detail}</small></div>)}</article>
+            <article className="result-panel wide"><small className="kicker">HIGHEST-IMPACT IMPROVEMENTS</small>{analysis.improvements.map((item, index) => <div className="improvement" key={`${item.issue}-${index}`}><span className={`priority ${item.priority}`}>{item.priority}</span><div><b>{item.issue}</b><p>{item.recommendation}</p></div></div>)}</article>
+            <article className="result-panel wide"><small className="kicker">STRENGTHS</small><ul>{analysis.strengths.map((strength) => <li key={strength}>✓ {strength}</li>)}</ul></article>
+          </div>
+          <button className="button secondary" onClick={() => { setAnalysis(null); setFile(null); }}>Analyze another CV</button>
+        </section>
+      )}
+      <footer className="analyze-footer shell"><span>✦ JobPilot AI</span><span>Private CV workflow</span><span>Built for real fit, not fake keywords.</span></footer>
     </main>
   );
 }
