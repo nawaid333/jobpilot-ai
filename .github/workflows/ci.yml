@@ -1,0 +1,39 @@
+name: JobPilot CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Production build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
+          OPENAI_API_KEY: ""
+          GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
+          GOOGLE_CLIENT_ID: ""
+          GOOGLE_CLIENT_SECRET: ""
+          GOOGLE_REDIRECT_URI: http://localhost:3000/api/gmail/callback
+          JOBPILOT_LEVER_COMPANIES: ""
+          STRIPE_SECRET_KEY: ""
+          STRIPE_PRO_PRICE_ID: ""
+          STRIPE_WEBHOOK_SECRET: ""
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
