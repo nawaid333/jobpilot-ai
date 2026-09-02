@@ -35,8 +35,16 @@ export async function getCurrentUser() {
     where: { id: sessionId },
     include: { user: true },
   });
-  if (!session || session.expiresAt.getTime() <= Date.now()) return null;
+  if (!session) return null;
+  if (session.expiresAt.getTime() <= Date.now()) {
+    await prisma.session.delete({ where: { id: session.id } }).catch(() => undefined);
+    return null;
+  }
   return session.user;
+}
+
+export async function cleanupExpiredSessions() {
+  return prisma.session.deleteMany({ where: { expiresAt: { lte: new Date() } } });
 }
 
 export function sessionCookieName() {
@@ -45,4 +53,14 @@ export function sessionCookieName() {
 
 export function sessionExpiry() {
   return new Date(Date.now() + SESSION_TTL_MS);
+}
+
+export function sessionCookieOptions(expiresAt: Date) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    expires: expiresAt,
+  };
 }
