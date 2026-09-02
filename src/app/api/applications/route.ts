@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { safeHttpUrl, stringArrayField, stringField, optionalStringField } from "@/lib/validate";
 
 const ALLOWED = ["Saved", "Preparing", "Applied", "Interview", "Offer", "Rejected"] as const;
 const RANK: Record<string, number> = { Saved: 0, Preparing: 1, Applied: 2, Interview: 3, Offer: 4, Rejected: 4 };
@@ -17,20 +18,33 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const b = await req.json();
-    if (!b.job?.id || !b.job?.title || !b.job?.company) return NextResponse.json({ error: "Job details are required." }, { status: 400 });
+    if (!b || typeof b !== "object" || !b.job || typeof b.job !== "object") return NextResponse.json({ error: "Job details are required." }, { status: 400 });
+    const rawJob = b.job as Record<string, unknown>;
+    const id = stringField(rawJob.id, 300, "Job id");
+    const title = stringField(rawJob.title, 500, "Job title");
+    const company = stringField(rawJob.company, 300, "Company");
+    const location = optionalStringField(rawJob.location, 500, "Location") ?? "";
+    const mode = optionalStringField(rawJob.mode, 100, "Mode") ?? null;
+    const level = optionalStringField(rawJob.level, 100, "Level") ?? null;
+    const source = optionalStringField(rawJob.source, 100, "Source") ?? null;
+    const salary = optionalStringField(rawJob.salary, 500, "Salary") ?? null;
+    const description = optionalStringField(rawJob.description, 20000, "Description") ?? null;
+    const url = rawJob.url ? safeHttpUrl(rawJob.url, "Job URL") : null;
+    const skills = rawJob.skills === undefined ? [] : stringArrayField(rawJob.skills, 100, 200, "Skills");
     if (b.status && !ALLOWED.includes(b.status)) return NextResponse.json({ error: "Invalid status." }, { status: 400 });
+    const notes = b.notes === undefined ? "" : stringField(b.notes, 10000, "Notes");
     const job = await prisma.job.upsert({
-      where: { id: String(b.job.id) },
-      create: { id: String(b.job.id), title: String(b.job.title), company: String(b.job.company), location: String(b.job.location || ""), mode: b.job.mode ? String(b.job.mode) : null, level: b.job.level ? String(b.job.level) : null, source: b.job.source ? String(b.job.source) : null, salary: b.job.salary ? String(b.job.salary) : null, url: b.job.url ? String(b.job.url) : null, description: b.job.description ? String(b.job.description) : null, skills: Array.isArray(b.job.skills) ? b.job.skills : [] },
-      update: { title: String(b.job.title), company: String(b.job.company), location: String(b.job.location || ""), mode: b.job.mode ? String(b.job.mode) : null, level: b.job.level ? String(b.job.level) : null, source: b.job.source ? String(b.job.source) : null, salary: b.job.salary ? String(b.job.salary) : null, url: b.job.url ? String(b.job.url) : null, description: b.job.description ? String(b.job.description) : null, skills: Array.isArray(b.job.skills) ? b.job.skills : [] },
+      where: { id },
+      create: { id, title, company, location, mode, level, source, salary, url, description, skills },
+      update: { title, company, location, mode, level, source, salary, url, description, skills },
     });
     const existing = await prisma.application.findUnique({ where: { userId_jobId: { userId: user.id, jobId: job.id } } });
     const requested = b.status ? String(b.status) : "Saved";
     const status = existing && RANK[existing.status] > RANK[requested] ? existing.status : requested;
     const application = await prisma.application.upsert({
       where: { userId_jobId: { userId: user.id, jobId: job.id } },
-      create: { userId: user.id, jobId: job.id, status, notes: String(b.notes || "") },
-      update: { status, notes: b.notes === undefined ? undefined : String(b.notes) },
+      create: { userId: user.id, jobId: job.id, status, notes },
+      update: { status, notes: b.notes === undefined ? undefined : notes },
       include: { job: true, tailoredApplication: true },
     });
     return NextResponse.json({ application });
@@ -42,11 +56,13 @@ export async function PATCH(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const b = await req.json();
-    if (!b.id) return NextResponse.json({ error: "Application id is required." }, { status: 400 });
+    if (!b || typeof b !== "object") return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+    const id = stringField(b.id, 300, "Application id");
     if (b.status && !ALLOWED.includes(b.status)) return NextResponse.json({ error: "Invalid status." }, { status: 400 });
-    const existing = await prisma.application.findFirst({ where: { id: String(b.id), userId: user.id } });
+    const notes = b.notes === undefined ? undefined : stringField(b.notes, 10000, "Notes");
+    const existing = await prisma.application.findFirst({ where: { id, userId: user.id } });
     if (!existing) return NextResponse.json({ error: "Application not found." }, { status: 404 });
-    const application = await prisma.application.update({ where: { id: existing.id }, data: { status: b.status || undefined, notes: b.notes === undefined ? undefined : String(b.notes), appliedAt: b.status === "Applied" && !existing.appliedAt ? new Date() : undefined }, include: { job: true, tailoredApplication: true } });
+    const application = await prisma.application.update({ where: { id: existing.id }, data: { status: b.status || undefined, notes, appliedAt: b.status === "Applied" && !existing.appliedAt ? new Date() : undefined }, include: { job: true, tailoredApplication: true } });
     return NextResponse.json({ application });
   } catch { return NextResponse.json({ error: "Could not update application." }, { status: 400 }); }
 }
@@ -55,8 +71,11 @@ export async function DELETE(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const b = await req.json().catch(() => ({}));
-  if (!b.id) return NextResponse.json({ error: "Application id is required." }, { status: 400 });
-  const result = await prisma.application.deleteMany({ where: { id: String(b.id), userId: user.id } });
-  if (!result.count) return NextResponse.json({ error: "Application not found." }, { status: 404 });
-  return NextResponse.json({ ok: true });
+  if (!b || typeof b !== "object" || !b.id) return NextResponse.json({ error: "Application id is required." }, { status: 400 });
+  try {
+    const id = stringField(b.id, 300, "Application id");
+    const result = await prisma.application.deleteMany({ where: { id, userId: user.id } });
+    if (!result.count) return NextResponse.json({ error: "Application not found." }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  } catch { return NextResponse.json({ error: "Could not delete application." }, { status: 400 }); }
 }
