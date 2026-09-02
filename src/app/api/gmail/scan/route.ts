@@ -1,0 +1,11 @@
+import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { decryptToken, gmailGet, refreshAccessToken } from "@/lib/gmail";
+import { classifyApplicationEmail } from "@/lib/application-intelligence";
+
+function decodeBase64Url(input:string){return Buffer.from(input.replace(/-/g,"+").replace(/_/g,"/"),"base64").toString("utf8")}
+function collectText(payload:any):string{if(!payload)return "";if(payload.mimeType==="text/plain"&&payload.body?.data)return decodeBase64Url(payload.body.data);return (payload.parts||[]).map((p:any)=>collectText(p)).join("\n").slice(0,12000)}
+function header(payload:any,name:string){return payload?.headers?.find((h:any)=>h.name?.toLowerCase()===name.toLowerCase())?.value||""}
+
+export async function POST(){const user=await getCurrentUser();if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});const connection=await prisma.gmailConnection.findUnique({where:{userId:user.id}});if(!connection)return NextResponse.json({error:"Gmail is not connected."},{status:400});try{let access=await refreshAccessToken(decryptToken(connection.refreshToken));const list=await gmailGet("/users/me/messages?maxResults=20&q=newer_than:30d+(application+OR+interview+OR+assessment+OR+offer+OR+recruiter)",access.access_token);let scanned=0,signals=0;for(const item of (list.messages||[])){const message=await gmailGet(`/users/me/messages/${item.id}?format=full`,access.access_token);const subject=header(message.payload,"Subject");const sender=header(message.payload,"From");const received=header(message.payload,"Date");const text=collectText(message.payload);const signal=classifyApplicationEmail(subject,text);if(!signal.suggestedStatus)continue;const existing=await prisma.emailSignal.findUnique({where:{userId_gmailMessageId:{userId:user.id,gmailMessageId:item.id}}});if(!existing){await prisma.emailSignal.create({data:{userId:user.id,gmailMessageId:item.id,threadId:message.threadId,sender,subject,receivedAt:received?new Date(received):null,category:signal.category,confidence:signal.confidence,suggestedStatus:signal.suggestedStatus,reason:signal.reason}});signals++}scanned++}return NextResponse.json({ok:true,scanned,signals});}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Gmail scan failed."},{status:502})}}
