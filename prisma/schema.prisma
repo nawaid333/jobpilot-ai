@@ -19,6 +19,8 @@ model User {
   preferences  JobPreferences?
   applications Application[]
   sessions     Session[]
+  gmailConnection GmailConnection?
+  emailSignals  EmailSignal[]
 }
 
 model Session {
@@ -77,6 +79,7 @@ model Job {
   firstSeenAt  DateTime      @default(now())
   lastSeenAt   DateTime      @updatedAt
   applications Application[]
+  emailSignals EmailSignal[]
 }
 
 model Application {
@@ -91,6 +94,7 @@ model Application {
   user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   job                Job                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
   tailoredApplication TailoredApplication?
+  emailSignals       EmailSignal[]
   @@unique([userId, jobId])
   @@index([userId, status])
 }
@@ -104,7 +108,43 @@ model TailoredApplication {
   missingRequirements Json
   recommendation      String
   template            String       @default("classic")
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
   application         Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+model GmailConnection {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  provider     String   @default("google")
+  email        String?
+  refreshToken String
+  scope        String
+  connectedAt  DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailSignal {
+  id             String   @id @default(cuid())
+  userId         String
+  jobId          String?
+  applicationId  String?
+  gmailMessageId String
+  threadId       String?
+  sender         String?
+  subject        String?
+  receivedAt     DateTime?
+  category       String
+  confidence     Float
+  suggestedStatus String?
+  reason         String
+  applied        Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job            Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  application    Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  @@unique([userId, gmailMessageId])
+  @@index([userId, category])
+  @@index([applicationId])
 }
