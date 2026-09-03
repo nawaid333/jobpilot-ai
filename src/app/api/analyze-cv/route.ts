@@ -35,12 +35,12 @@ export async function POST(request: Request) {
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > MAX_REQUEST_SIZE) return NextResponse.json({ error: "CV upload request is too large." }, { status: 413 });
 
+  let uploadedFileId: string | undefined;
   try {
     // Check the real request size as well: Content-Length can be absent or inaccurate.
     const bodyBytes = await request.clone().arrayBuffer();
     if (bodyBytes.byteLength > MAX_REQUEST_SIZE) return NextResponse.json({ error: "CV upload request is too large." }, { status: 413 });
 
-    let uploadedFileId: string | undefined;
     const formData = await request.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "Please upload a CV file." }, { status: 400 });
@@ -71,7 +71,6 @@ export async function POST(request: Request) {
     console.error("CV analysis error", error);
     return NextResponse.json({ error: "Unexpected server error while analyzing the CV." }, { status: 500 });
   } finally {
-    // File IDs are scoped to the server request; remove uploaded CV data when possible.
     if (uploadedFileId) {
       void fetch(`https://api.openai.com/v1/files/${encodeURIComponent(uploadedFileId)}`, {
         method: "DELETE",
