@@ -35,7 +35,7 @@ export async function GET() {
   const limited = guard(user.id, "read");
   if (limited) return limited;
   const applications = await prisma.application.findMany({ where: { userId: user.id }, include: { job: true, tailoredApplication: true }, orderBy: { updatedAt: "desc" }, take: MAX_APPLICATIONS_READ });
-  return NextResponse.json({ applications, limit: MAX_APPLICATIONS_READ });
+  return NextResponse.json({ applications, limit: MAX_APPLICATIONS_READ }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }
 
 export async function POST(req: Request) {
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
     const requested = b.status ? String(b.status) : "Saved";
     const status = existing && RANK[existing.status] > RANK[requested] ? existing.status : requested;
     const application = await prisma.application.upsert({ where: { userId_jobId: { userId: user.id, jobId: job.id } }, create: { userId: user.id, jobId: job.id, status, notes }, update: { status, notes: b.notes === undefined ? undefined : notes }, include: { job: true, tailoredApplication: true } });
-    return NextResponse.json({ application });
+    return NextResponse.json({ application }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch { return NextResponse.json({ error: "Could not save application." }, { status: 400 }); }
 }
 
@@ -87,7 +87,7 @@ export async function PATCH(req: Request) {
     const existing = await prisma.application.findFirst({ where: { id, userId: user.id } });
     if (!existing) return NextResponse.json({ error: "Application not found." }, { status: 404 });
     const application = await prisma.application.update({ where: { id: existing.id }, data: { status: b.status || undefined, notes, appliedAt: b.status === "Applied" && !existing.appliedAt ? new Date() : undefined }, include: { job: true, tailoredApplication: true } });
-    return NextResponse.json({ application });
+    return NextResponse.json({ application }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch { return NextResponse.json({ error: "Could not update application." }, { status: 400 }); }
 }
 
@@ -104,6 +104,6 @@ export async function DELETE(req: Request) {
     const id = stringField(b.id, 300, "Application id");
     const result = await prisma.application.deleteMany({ where: { id, userId: user.id } });
     if (!result.count) return NextResponse.json({ error: "Application not found." }, { status: 404 });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch { return NextResponse.json({ error: "Could not delete application." }, { status: 400 }); }
 }
