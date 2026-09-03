@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const response = await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`, { next: { revalidate: 900 } });
     if (!response.ok) throw new Error(`Lever source ${slug} returned ${response.status}`);
     const postings = await response.json() as LeverPosting[];
-    return postings.map(job => ({
+    return postings.slice(0, 500).map(job => ({
       id: `${slug}:${job.id}`,
       title: job.text,
       company: slug,
@@ -46,5 +46,5 @@ export async function GET(request: Request) {
   }));
 
   const jobs = results.flatMap(result => result.status === "fulfilled" ? result.value : []);
-  return NextResponse.json({ jobs, configured: true, sources: companies.length, fetchedAt: new Date().toISOString() });
+  return NextResponse.json({ jobs: jobs.slice(0, 1000), configured: true, sources: companies.length, fetchedAt: new Date().toISOString() });
 }
