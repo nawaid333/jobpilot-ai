@@ -7,9 +7,15 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 const ALLOWED = ["Saved", "Preparing", "Applied", "Interview", "Offer", "Rejected"] as const;
 const RANK: Record<string, number> = { Saved: 0, Preparing: 1, Applied: 2, Interview: 3, Offer: 4, Rejected: 4 };
 const MAX_APPLICATIONS_READ = 100;
+const MAX_BODY_BYTES = 128 * 1024;
 
 function guard(userId: string, action: string) {
   return rateLimitResponse(rateLimit(`applications:${action}:${userId}`, action === "read" ? 60 : 30, 60_000));
+}
+
+function bodyTooLarge(req: Request) {
+  const length = req.headers.get("content-length");
+  return length !== null && Number.isFinite(Number(length)) && Number(length) > MAX_BODY_BYTES;
 }
 
 export async function GET() {
@@ -26,6 +32,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const limited = guard(user.id, "write");
   if (limited) return limited;
+  if (bodyTooLarge(req)) return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
   try {
     const b = await req.json();
     if (!b || typeof b !== "object" || !b.job || typeof b.job !== "object") return NextResponse.json({ error: "Job details are required." }, { status: 400 });
@@ -57,6 +64,7 @@ export async function PATCH(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const limited = guard(user.id, "write");
   if (limited) return limited;
+  if (bodyTooLarge(req)) return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
   try {
     const b = await req.json();
     if (!b || typeof b !== "object") return NextResponse.json({ error: "Invalid request." }, { status: 400 });
@@ -75,6 +83,7 @@ export async function DELETE(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const limited = guard(user.id, "write");
   if (limited) return limited;
+  if (bodyTooLarge(req)) return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
   const b = await req.json().catch(() => ({}));
   if (!b || typeof b !== "object" || !b.id) return NextResponse.json({ error: "Application id is required." }, { status: 400 });
   try {
