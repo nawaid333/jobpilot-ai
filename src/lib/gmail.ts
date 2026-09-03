@@ -60,6 +60,8 @@ export async function refreshAccessToken(refreshToken: string) {
 }
 
 export async function gmailGet(path: string, accessToken: string) {
+  if (!path.startsWith("/")) throw new Error("Invalid Gmail API path");
+  if (/^(?:https?:)?\/\//i.test(path) || path.includes("\\")) throw new Error("Invalid Gmail API path");
   const r = await fetch(`${GMAIL_API}${path}`, { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" });
   if (!r.ok) throw new Error(`Gmail API request failed: ${r.status}`);
   return r.json();
