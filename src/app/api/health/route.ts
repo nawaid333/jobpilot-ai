@@ -39,5 +39,11 @@ export async function GET(request: Request) {
   }
 
   const ok = checks.database === "ok" && checks.config === "ok";
-  return NextResponse.json({ ok, checks, timestamp: new Date().toISOString() }, { status: ok ? 200 : 503 });
+  return NextResponse.json(
+    { ok, checks, timestamp: new Date().toISOString() },
+    {
+      status: ok ? 200 : 503,
+      headers: { "Cache-Control": "no-store" },
+    },
+  );
 }
