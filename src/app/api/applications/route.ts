@@ -18,6 +18,17 @@ function bodyTooLarge(req: Request) {
   return length !== null && Number.isFinite(Number(length)) && Number(length) > MAX_BODY_BYTES;
 }
 
+function originViolation(req: Request) {
+  const origin = req.headers.get("origin");
+  if (!origin) return false;
+  try {
+    const expected = new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").origin;
+    return new URL(origin).origin !== expected;
+  } catch {
+    return true;
+  }
+}
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -32,6 +43,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const limited = guard(user.id, "write");
   if (limited) return limited;
+  if (originViolation(req)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   if (bodyTooLarge(req)) return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
   try {
     const b = await req.json();
@@ -64,6 +76,7 @@ export async function PATCH(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const limited = guard(user.id, "write");
   if (limited) return limited;
+  if (originViolation(req)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   if (bodyTooLarge(req)) return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
   try {
     const b = await req.json();
@@ -83,6 +96,7 @@ export async function DELETE(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const limited = guard(user.id, "write");
   if (limited) return limited;
+  if (originViolation(req)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   if (bodyTooLarge(req)) return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
   const b = await req.json().catch(() => ({}));
   if (!b || typeof b !== "object" || !b.id) return NextResponse.json({ error: "Application id is required." }, { status: 400 });
