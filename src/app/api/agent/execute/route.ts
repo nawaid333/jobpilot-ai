@@ -1,18 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const safeActions = new Set(["prepare", "mark-preparing", "mark-applied"]);
 const RANK: Record<string, number> = { Saved: 0, Preparing: 1, Applied: 2, Interview: 3, Offer: 4, Rejected: 4 };
+const MAX_BODY_BYTES = 16_000;
+
+async function readJson(request: NextRequest) {
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > MAX_BODY_BYTES) throw new Error("Request is too large.");
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error("Request body is required.");
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_BODY_BYTES) { await reader.cancel(); throw new Error("Request is too large."); }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = rateLimit(`agent-execute:${user.id}`, 30, 60_000);
+  const limitedResponse = rateLimitResponse(limited);
+  if (limitedResponse) return limitedResponse;
   try {
-    const body = await request.json();
-    const action = String(body?.action || "");
-    const applicationId = String(body?.applicationId || "");
-    if (!applicationId || !safeActions.has(action)) return NextResponse.json({ error: "Valid action and application are required." }, { status: 400 });
+    const body = await readJson(request);
+    const action = typeof body?.action === "string" ? body.action : "";
+    const applicationId = typeof body?.applicationId === "string" ? body.applicationId : "";
+    if (!applicationId || applicationId.length > 200 || !safeActions.has(action)) return NextResponse.json({ error: "Valid action and application are required." }, { status: 400 });
     const application = await prisma.application.findFirst({ where: { id: applicationId, userId: user.id }, include: { job: true, tailoredApplication: true } });
     if (!application) return NextResponse.json({ error: "Application not found." }, { status: 404 });
 
@@ -29,5 +54,8 @@ export async function POST(request: NextRequest) {
     if (RANK[application.status] > RANK.Applied) return NextResponse.json({ error: `Cannot mark a ${application.status} application as Applied.` }, { status: 409 });
     const updated = await prisma.application.update({ where: { id: application.id }, data: { status: "Applied", appliedAt: application.appliedAt || new Date() } });
     return NextResponse.json({ ok: true, status: updated.status, message: "Marked as Applied. JobPilot did not submit the application." });
-  } catch { return NextResponse.json({ error: "Could not execute agent action." }, { status: 400 }); }
+  } catch (error) {
+    if (error instanceof Error && error.message === "Request is too large.") return NextResponse.json({ error: error.message }, { status: 413 });
+    return NextResponse.json({ error: "Could not execute agent action." }, { status: 400 });
+  }
 }
