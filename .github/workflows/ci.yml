@@ -37,6 +37,8 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Generate Prisma client
         run: npx prisma generate
+      - name: TypeScript validation
+        run: npx tsc --noEmit
       - name: Prepare database
         run: npx prisma db push --skip-generate
         env:
