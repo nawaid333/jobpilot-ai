@@ -2,20 +2,30 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { safeHttpUrl, stringArrayField, stringField, optionalStringField } from "@/lib/validate";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const ALLOWED = ["Saved", "Preparing", "Applied", "Interview", "Offer", "Rejected"] as const;
 const RANK: Record<string, number> = { Saved: 0, Preparing: 1, Applied: 2, Interview: 3, Offer: 4, Rejected: 4 };
+const MAX_APPLICATIONS_READ = 100;
+
+function guard(userId: string, action: string) {
+  return rateLimitResponse(rateLimit(`applications:${action}:${userId}`, action === "read" ? 60 : 30, 60_000));
+}
 
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const applications = await prisma.application.findMany({ where: { userId: user.id }, include: { job: true, tailoredApplication: true }, orderBy: { updatedAt: "desc" } });
-  return NextResponse.json({ applications });
+  const limited = guard(user.id, "read");
+  if (limited) return limited;
+  const applications = await prisma.application.findMany({ where: { userId: user.id }, include: { job: true, tailoredApplication: true }, orderBy: { updatedAt: "desc" }, take: MAX_APPLICATIONS_READ });
+  return NextResponse.json({ applications, limit: MAX_APPLICATIONS_READ });
 }
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = guard(user.id, "write");
+  if (limited) return limited;
   try {
     const b = await req.json();
     if (!b || typeof b !== "object" || !b.job || typeof b.job !== "object") return NextResponse.json({ error: "Job details are required." }, { status: 400 });
@@ -33,20 +43,11 @@ export async function POST(req: Request) {
     const skills = rawJob.skills === undefined ? [] : stringArrayField(rawJob.skills, 100, 200, "Skills");
     if (b.status && !ALLOWED.includes(b.status)) return NextResponse.json({ error: "Invalid status." }, { status: 400 });
     const notes = b.notes === undefined ? "" : stringField(b.notes, 10000, "Notes");
-    const job = await prisma.job.upsert({
-      where: { id },
-      create: { id, title, company, location, mode, level, source, salary, url, description, skills },
-      update: { title, company, location, mode, level, source, salary, url, description, skills },
-    });
+    const job = await prisma.job.upsert({ where: { id }, create: { id, title, company, location, mode, level, source, salary, url, description, skills }, update: { title, company, location, mode, level, source, salary, url, description, skills } });
     const existing = await prisma.application.findUnique({ where: { userId_jobId: { userId: user.id, jobId: job.id } } });
     const requested = b.status ? String(b.status) : "Saved";
     const status = existing && RANK[existing.status] > RANK[requested] ? existing.status : requested;
-    const application = await prisma.application.upsert({
-      where: { userId_jobId: { userId: user.id, jobId: job.id } },
-      create: { userId: user.id, jobId: job.id, status, notes },
-      update: { status, notes: b.notes === undefined ? undefined : notes },
-      include: { job: true, tailoredApplication: true },
-    });
+    const application = await prisma.application.upsert({ where: { userId_jobId: { userId: user.id, jobId: job.id } }, create: { userId: user.id, jobId: job.id, status, notes }, update: { status, notes: b.notes === undefined ? undefined : notes }, include: { job: true, tailoredApplication: true } });
     return NextResponse.json({ application });
   } catch { return NextResponse.json({ error: "Could not save application." }, { status: 400 }); }
 }
@@ -54,6 +55,8 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = guard(user.id, "write");
+  if (limited) return limited;
   try {
     const b = await req.json();
     if (!b || typeof b !== "object") return NextResponse.json({ error: "Invalid request." }, { status: 400 });
@@ -70,6 +73,8 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = guard(user.id, "write");
+  if (limited) return limited;
   const b = await req.json().catch(() => ({}));
   if (!b || typeof b !== "object" || !b.id) return NextResponse.json({ error: "Application id is required." }, { status: 400 });
   try {
