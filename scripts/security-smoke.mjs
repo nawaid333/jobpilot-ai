@@ -74,6 +74,16 @@ test("protected APIs reject unauthenticated requests", async () => {
   assert.equal(body?.error, "Unauthorized");
 });
 
+test("tailoring rejects unauthenticated requests", async () => {
+  const { response, body } = await request("/api/tailor", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jobId: "does-not-matter" }),
+  });
+  assert.equal(response.status, 401);
+  assert.equal(body?.error, "Unauthorized");
+});
+
 test("security headers are present", async () => {
   const { response } = await request("/api/applications");
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
@@ -179,6 +189,16 @@ test("expired sessions are rejected", async () => {
 test("application input limits reject oversized bodies", async () => {
   const oversized = JSON.stringify({ job: { id: `large-${runId}`, title: "Large", company: "Large", location: "Remote" }, notes: "x".repeat(130_000) });
   const { response } = await request("/api/applications", {
+    method: "POST",
+    headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(oversized)), cookie: cookieA },
+    body: oversized,
+  });
+  assert.equal(response.status, 413);
+});
+
+test("tailoring input limits reject oversized bodies before AI work", async () => {
+  const oversized = JSON.stringify({ jobId: "x".repeat(200), padding: "x".repeat(65_000) });
+  const { response } = await request("/api/tailor", {
     method: "POST",
     headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(oversized)), cookie: cookieA },
     body: oversized,
