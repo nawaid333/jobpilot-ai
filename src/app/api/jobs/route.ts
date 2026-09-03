@@ -41,6 +41,7 @@ export async function GET(request: Request) {
       level: job.categories?.level || "Not specified",
       commitment: job.categories?.commitment || "",
       team: job.categories?.team || "",
+      skills: [],
       description: job.content?.description || "",
       salary: job.salaryDescription || "",
       url: job.urls?.show || job.urls?.apply || "",
