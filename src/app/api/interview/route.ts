@@ -17,33 +17,52 @@ function fallbackQuestions(job: { title: string; company: string; description: s
 }
 function rulesFeedback() { return { score: null, verdict: "Evidence review", strengths: ["You answered the question directly."], improvements: ["Add a specific situation, your actions, and a measurable or observable result where truthful."], followUp: "What was your specific contribution and what changed because of it?" }; }
 
+function validFeedback(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const x = value as Record<string, unknown>;
+  const strengths = Array.isArray(x.strengths) ? x.strengths.filter((v): v is string => typeof v === "string").slice(0, 3).map(v => v.slice(0, 500)) : [];
+  const improvements = Array.isArray(x.improvements) ? x.improvements.filter((v): v is string => typeof v === "string").slice(0, 3).map(v => v.slice(0, 500)) : [];
+  const followUp = typeof x.followUp === "string" ? x.followUp.slice(0, 1000) : "What was your specific contribution and what changed because of it?";
+  const verdict = typeof x.verdict === "string" ? x.verdict.slice(0, 300) : "Evidence review";
+  const score = typeof x.score === "number" && Number.isFinite(x.score) ? Math.max(0, Math.min(100, Math.round(x.score))) : null;
+  return { score, verdict, strengths, improvements, followUp };
+}
+
+function validQuestions(value: unknown) {
+  if (!value || typeof value !== "object") return [];
+  const x = value as Record<string, unknown>;
+  if (!Array.isArray(x.questions)) return [];
+  return x.questions.slice(0, 8).filter((q): q is Record<string, unknown> => !!q && typeof q === "object").map((q, i) => ({
+    id: `q${i + 1}`,
+    type: typeof q.type === "string" && ["behavioral", "skills", "role", "experience", "motivation"].includes(q.type) ? q.type : "role",
+    question: typeof q.question === "string" ? q.question.slice(0, 1000) : "",
+    why: typeof q.why === "string" ? q.why.slice(0, 500) : "Tests role fit."
+  })).filter(q => q.question);
+}
+
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const limit = rateLimit(`interview:${user.id}`, 10, 60_000);
   if (!limit.ok) return NextResponse.json({ error: "Too many Interview Coach requests. Please try again shortly." }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } });
-
   const contentLength = Number(req.headers.get("content-length") || 0);
   if (contentLength > 32_000) return NextResponse.json({ error: "Request is too large." }, { status: 413 });
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
-  const applicationId = typeof body.applicationId === "string" ? body.applicationId.trim() : "";
-  const mode = body.mode === "feedback" ? "feedback" : "questions";
+  const applicationId = typeof (body as any).applicationId === "string" ? (body as any).applicationId.trim() : "";
+  const mode = (body as any).mode === "feedback" ? "feedback" : "questions";
   if (!applicationId || applicationId.length > 100) return NextResponse.json({ error: "applicationId is required" }, { status: 400 });
-
   const application = await prisma.application.findFirst({ where: { id: applicationId, userId: user.id }, include: { job: true } });
   if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
   const profile = await prisma.careerProfile.findUnique({ where: { userId: user.id } });
   const profileFacts = profile ? { headline: profile.headline, summary: profile.summary, skills: profile.skills, targetRoles: profile.targetRoles, experience: profile.experience, education: profile.education, strengths: profile.strengths } : null;
   const fallback = fallbackQuestions(application.job, profile);
-
   if (mode === "feedback") {
-    const answer = typeof body.answer === "string" ? body.answer.trim() : "";
-    const question = typeof body.question === "string" ? body.question.trim() : "";
+    const answer = typeof (body as any).answer === "string" ? (body as any).answer.trim() : "";
+    const question = typeof (body as any).question === "string" ? (body as any).question.trim() : "";
     if (!answer || !question) return NextResponse.json({ error: "question and answer are required" }, { status: 400 });
     if (answer.length > 12_000 || question.length > 2_000) return NextResponse.json({ error: "Question or answer is too long." }, { status: 413 });
   }
-
   if (!process.env.OPENAI_API_KEY) {
     if (mode === "feedback") return NextResponse.json({ feedback: rulesFeedback(), mode: "rules" });
     return NextResponse.json({ questions: fallback, mode: "rules", job: application.job });
@@ -53,13 +72,11 @@ export async function POST(req: Request) {
     if (mode === "feedback") return NextResponse.json({ feedback: rulesFeedback(), mode: "rules", aiLimited: true, remainingAi: 0 });
     return NextResponse.json({ questions: fallback, mode: "rules", job: application.job, aiLimited: true, remainingAi: 0 });
   }
-
   if (mode === "feedback") {
-    const answer = String(body.answer).trim(); const question = String(body.question).trim();
+    const answer = String((body as any).answer).trim(); const question = String((body as any).question).trim();
     const prompt = `You are JobPilot AI Interview Coach. Review a candidate's interview answer using ONLY the supplied facts. Never invent experience, metrics, employers, tools, dates, responsibilities, or outcomes. If the answer contains unsupported claims, flag them rather than validating them. Give practical coaching, not hiring guarantees. JOB: ${application.job.title} at ${application.job.company}. Location: ${application.job.location}. Description: ${(application.job.description || "").slice(0,7000)}. CAREER PROFILE: ${JSON.stringify(profileFacts).slice(0,12000)}. QUESTION: ${question}. CANDIDATE ANSWER: ${answer}. Return JSON only: {"score":number,"verdict":string,"strengths":string[],"improvements":string[],"followUp":string}. Max 3 strengths/improvements.`;
-    try { const response = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, body: JSON.stringify({ model: "gpt-5.6-luna", messages: [{ role: "user", content: prompt }], temperature: 0.2, response_format: { type: "json_object" } }) }); if (!response.ok) throw new Error("AI request failed"); const data = await response.json(); return NextResponse.json({ feedback: JSON.parse(data.choices?.[0]?.message?.content || "{}"), mode: "ai", remainingAi: credit.entitlements.remainingAi }); } catch { return NextResponse.json({ feedback: rulesFeedback(), mode: "rules", remainingAi: credit.entitlements.remainingAi }); }
+    try { const response = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, body: JSON.stringify({ model: "gpt-5.6-luna", messages: [{ role: "user", content: prompt }], temperature: 0.2, response_format: { type: "json_object" } }) }); if (!response.ok) throw new Error("AI request failed"); const data = await response.json(); const feedback = validFeedback(JSON.parse(data.choices?.[0]?.message?.content || "{}")) || rulesFeedback(); return NextResponse.json({ feedback, mode: "ai", remainingAi: credit.entitlements.remainingAi }); } catch { return NextResponse.json({ feedback: rulesFeedback(), mode: "rules", remainingAi: credit.entitlements.remainingAi }); }
   }
-
   const prompt = `You are JobPilot AI Interview Coach. Generate interview practice questions for a candidate and a saved job. Use ONLY the supplied job description and career profile. Never assume a skill, employer, project, achievement, metric, technology, date, or responsibility that is not present. Questions should test fit, behavior, role skills, and motivation. Do not claim what the company will ask. JOB: ${application.job.title} at ${application.job.company}. Location: ${application.job.location}. Description: ${(application.job.description || "").slice(0,8000)}. CAREER PROFILE: ${JSON.stringify(profileFacts).slice(0,12000)}. Return JSON only: {"questions":[{"id":"q1","type":"behavioral|skills|role|experience|motivation","question":"...","why":"..."}]} with exactly 8 questions.`;
-  try { const response = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, body: JSON.stringify({ model: "gpt-5.6-luna", messages: [{ role: "user", content: prompt }], temperature: 0.3, response_format: { type: "json_object" } }) }); if (!response.ok) throw new Error("OpenAI request failed"); const data = await response.json(); const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}"); const questions = Array.isArray(parsed.questions) ? parsed.questions.slice(0, 8) : fallback; return NextResponse.json({ questions, mode: "ai", job: application.job, remainingAi: credit.entitlements.remainingAi }); } catch { return NextResponse.json({ questions: fallback, mode: "rules", job: application.job, remainingAi: credit.entitlements.remainingAi }); }
+  try { const response = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, body: JSON.stringify({ model: "gpt-5.6-luna", messages: [{ role: "user", content: prompt }], temperature: 0.3, response_format: { type: "json_object" } }) }); if (!response.ok) throw new Error("OpenAI request failed"); const data = await response.json(); const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}"); const questions = validQuestions(parsed).length ? validQuestions(parsed) : fallback; return NextResponse.json({ questions, mode: "ai", job: application.job, remainingAi: credit.entitlements.remainingAi }); } catch { return NextResponse.json({ questions: fallback, mode: "rules", job: application.job, remainingAi: credit.entitlements.remainingAi }); }
 }
