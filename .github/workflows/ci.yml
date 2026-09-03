@@ -44,11 +44,11 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: 1
           DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
-          OPENAI_API_KEY: ""
+          OPENAI_API_KEY: "ci-placeholder"
           GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
           GOOGLE_CLIENT_ID: ""
           GOOGLE_CLIENT_SECRET: ""
-          GOOGLE_REDIRECT_URI: http://localhost:3000/api/gmail/callback
+          GOOGLE_REDIRECT_URI: ""
           JOBPILOT_LEVER_COMPANIES: ""
           STRIPE_SECRET_KEY: ""
           STRIPE_PRO_PRICE_ID: ""
@@ -58,11 +58,11 @@ jobs:
         run: |
           DATABASE_URL=postgresql://ci:ci@localhost:5432/jobpilot_ci \
           NEXT_PUBLIC_APP_URL=http://localhost:3000 \
-          OPENAI_API_KEY= \
+          OPENAI_API_KEY=ci-placeholder \
           GMAIL_TOKEN_ENCRYPTION_KEY=00000000000000000000000000000000 \
           GOOGLE_CLIENT_ID= \
           GOOGLE_CLIENT_SECRET= \
-          GOOGLE_REDIRECT_URI=http://localhost:3000/api/gmail/callback \
+          GOOGLE_REDIRECT_URI= \
           JOBPILOT_LEVER_COMPANIES= \
           STRIPE_SECRET_KEY= \
           STRIPE_PRO_PRICE_ID= \
@@ -70,10 +70,11 @@ jobs:
           npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/jobpilot-next.log 2>&1 &
           echo $! > /tmp/jobpilot-next.pid
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3000/api/applications >/dev/null 2>&1; then exit 0; fi
+            if curl -sS -o /tmp/jobpilot-health.json -w "%{http_code}" http://127.0.0.1:3000/api/health | grep -q '^200$'; then exit 0; fi
             sleep 1
           done
           cat /tmp/jobpilot-next.log
+          cat /tmp/jobpilot-health.json || true
           exit 1
       - name: Security regression suite
         run: npm run test:security
@@ -81,11 +82,11 @@ jobs:
           BASE_URL: http://127.0.0.1:3000
           DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
           NEXT_PUBLIC_APP_URL: http://localhost:3000
-          OPENAI_API_KEY: ""
+          OPENAI_API_KEY: "ci-placeholder"
           GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
           GOOGLE_CLIENT_ID: ""
           GOOGLE_CLIENT_SECRET: ""
-          GOOGLE_REDIRECT_URI: http://localhost:3000/api/gmail/callback
+          GOOGLE_REDIRECT_URI: ""
           JOBPILOT_LEVER_COMPANIES: ""
           STRIPE_SECRET_KEY: ""
           STRIPE_PRO_PRICE_ID: ""
