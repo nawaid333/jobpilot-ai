@@ -53,11 +53,11 @@ jobs:
           STRIPE_SECRET_KEY: ""
           STRIPE_PRO_PRICE_ID: ""
           STRIPE_WEBHOOK_SECRET: ""
-          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_APP_URL: https://localhost:3000
       - name: Start production server
         run: |
           DATABASE_URL=postgresql://ci:ci@localhost:5432/jobpilot_ci \
-          NEXT_PUBLIC_APP_URL=http://localhost:3000 \
+          NEXT_PUBLIC_APP_URL=https://localhost:3000 \
           OPENAI_API_KEY=ci-placeholder \
           GMAIL_TOKEN_ENCRYPTION_KEY=00000000000000000000000000000000 \
           GOOGLE_CLIENT_ID= \
@@ -81,7 +81,7 @@ jobs:
         env:
           BASE_URL: http://127.0.0.1:3000
           DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
-          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_APP_URL: https://localhost:3000
           OPENAI_API_KEY: "ci-placeholder"
           GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
           GOOGLE_CLIENT_ID: ""
