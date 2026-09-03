@@ -22,10 +22,13 @@ export async function GET(request: Request) {
   if (rateResponse) return rateResponse;
 
   const companies = (process.env.JOBPILOT_LEVER_COMPANIES || "").split(",").map(x => x.trim()).filter(Boolean).slice(0, 20);
-  if (!companies.length) return NextResponse.json({ jobs: [], configured: false, message: "Configure JOBPILOT_LEVER_COMPANIES with public Lever company slugs." });
+  if (!companies.length) return NextResponse.json({ jobs: [], configured: false, message: "Configure JOBPILOT_LEVER_COMPANIES with public Lever company slugs." }, { headers: { "Cache-Control": "public, max-age=60" } });
 
   const results = await Promise.allSettled(companies.map(async (slug) => {
-    const response = await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`, { next: { revalidate: 900 } });
+    const response = await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`, {
+      next: { revalidate: 900 },
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!response.ok) throw new Error(`Lever source ${slug} returned ${response.status}`);
     const postings = await response.json() as LeverPosting[];
     return postings.slice(0, 500).map(job => ({
@@ -46,5 +49,9 @@ export async function GET(request: Request) {
   }));
 
   const jobs = results.flatMap(result => result.status === "fulfilled" ? result.value : []);
-  return NextResponse.json({ jobs: jobs.slice(0, 1000), configured: true, sources: companies.length, fetchedAt: new Date().toISOString() });
+  const failedSources = results.filter(result => result.status === "rejected").length;
+  return NextResponse.json(
+    { jobs: jobs.slice(0, 1000), configured: true, sources: companies.length, failedSources, fetchedAt: new Date().toISOString() },
+    { headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" } },
+  );
 }
