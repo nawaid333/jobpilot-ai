@@ -18,7 +18,7 @@
     "react-dom": "19.1.1",
     "@prisma/client": "^6.15.0",
     "docx": "^9.5.1",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.0"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
@@ -26,5 +26,8 @@
     "@types/react-dom": "^19.1.0",
     "typescript": "^5.8.3",
     "prisma": "^6.15.0"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1"
   }
 }
