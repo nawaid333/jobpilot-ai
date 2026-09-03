@@ -42,16 +42,49 @@ function validateResult(value: unknown) {
   return { fitSummary, tailoredSummary, resumeEdits, coverLetter, missingRequirements, applicationRecommendation };
 }
 
+function invalidOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  try {
+    const expected = new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").origin;
+    return new URL(origin).origin !== expected;
+  } catch {
+    return true;
+  }
+}
+
+async function readJsonWithinLimit(request: Request) {
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error("Request body is unavailable.");
+  const decoder = new TextDecoder();
+  let size = 0;
+  let raw = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_BODY_BYTES) throw Object.assign(new Error("Request is too large."), { code: "PAYLOAD_TOO_LARGE" });
+      raw += decoder.decode(value, { stream: true });
+    }
+    raw += decoder.decode();
+    return JSON.parse(raw) as Record<string, unknown>;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const limit = rateLimit(`tailor:${user.id}`, 10, 60_000);
   if (!limit.ok) return NextResponse.json({ error: "Too many tailoring requests. Please try again shortly." }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } });
+  if (invalidOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   try {
     const contentLength = Number(request.headers.get("content-length") || 0);
     if (contentLength > MAX_BODY_BYTES) return NextResponse.json({ error: "Request is too large." }, { status: 413 });
 
-    const body = await request.json();
+    const body = await readJsonWithinLimit(request);
     const jobId = body?.jobId ? String(body.jobId).slice(0, 200) : "";
     const profile = await prisma.careerProfile.findUnique({ where: { userId: user.id } });
     const preferences = await prisma.jobPreferences.findUnique({ where: { userId: user.id } });
@@ -82,12 +115,14 @@ Job: ${JSON.stringify(application.job)}`;
     const result = validateResult(parsed);
     if (!result) return NextResponse.json({ error: "AI returned an invalid tailoring package." }, { status: 502 });
 
-    // Only consume an AI credit after a successful, validated generation.
     const credit = await consumeAiCredit(user.id);
     if (!credit.ok) return NextResponse.json({ error: "Monthly AI limit reached.", plan: credit.entitlements.planKey, usage: credit.entitlements.usage, remainingAi: 0 }, { status: 429 });
 
     const saved = await prisma.tailoredApplication.upsert({ where: { applicationId: application.id }, create: { applicationId: application.id, tailoredSummary: result.tailoredSummary, resumeEdits: result.resumeEdits, coverLetter: result.coverLetter, missingRequirements: result.missingRequirements, recommendation: result.applicationRecommendation }, update: { tailoredSummary: result.tailoredSummary, resumeEdits: result.resumeEdits, coverLetter: result.coverLetter, missingRequirements: result.missingRequirements, recommendation: result.applicationRecommendation } });
     const updatedApplication = application.status === "Saved" ? await prisma.application.update({ where: { id: application.id }, data: { status: "Preparing" } }) : application;
-    return NextResponse.json({ result: { ...result, id: saved.id }, job: application.job, applicationId: application.id, status: updatedApplication.status, persisted: true, remainingAi: credit.entitlements.remainingAi });
-  } catch { return NextResponse.json({ error: "Unable to create the tailored application package." }, { status: 400 }); }
+    return NextResponse.json({ result: { ...result, id: saved.id }, job: application.job, applicationId: application.id, status: updatedApplication.status, persisted: true, remainingAi: credit.entitlements.remainingAi }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "PAYLOAD_TOO_LARGE") return NextResponse.json({ error: "Request is too large." }, { status: 413 });
+    return NextResponse.json({ error: "Unable to create the tailored application package." }, { status: 400 });
+  }
 }
