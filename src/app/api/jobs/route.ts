@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     });
     if (!response.ok) throw new Error(`Lever source ${slug} returned ${response.status}`);
     const postings = await response.json() as LeverPosting[];
+    if (!Array.isArray(postings)) throw new Error(`Lever source ${slug} returned invalid data`);
     return postings.slice(0, 500).map(job => ({
       id: `${slug}:${job.id}`,
       title: job.text,
