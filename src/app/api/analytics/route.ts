@@ -5,18 +5,13 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const DAY = 86400000;
 
-function clientKey(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || request.headers.get("x-real-ip") || "anonymous";
-}
-
-export async function GET(request: Request) {
-  const limited = rateLimit(`analytics:${clientKey(request)}`, 30, 60_000);
-  const rateResponse = rateLimitResponse(limited);
-  if (rateResponse) return rateResponse;
-
+export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limited = rateLimit(`analytics:${user.id}`, 30, 60_000);
+  const rateResponse = rateLimitResponse(limited);
+  if (rateResponse) return rateResponse;
 
   try {
     const applications = await prisma.application.findMany({
