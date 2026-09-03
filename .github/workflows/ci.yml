@@ -50,7 +50,7 @@ jobs:
           GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
           GOOGLE_CLIENT_ID: "ci-client-id.apps.googleusercontent.com"
           GOOGLE_CLIENT_SECRET: "ci-client-secret"
-          GOOGLE_REDIRECT_URI: "http://127.0.0.1:3000/api/gmail/callback"
+          GOOGLE_REDIRECT_URI: "https://127.0.0.1:3000/api/gmail/callback"
           JOBPILOT_LEVER_COMPANIES: ""
           STRIPE_SECRET_KEY: ""
           STRIPE_PRO_PRICE_ID: ""
@@ -64,7 +64,7 @@ jobs:
           GMAIL_TOKEN_ENCRYPTION_KEY=00000000000000000000000000000000 \
           GOOGLE_CLIENT_ID=ci-client-id.apps.googleusercontent.com \
           GOOGLE_CLIENT_SECRET=ci-client-secret \
-          GOOGLE_REDIRECT_URI=http://127.0.0.1:3000/api/gmail/callback \
+          GOOGLE_REDIRECT_URI=https://127.0.0.1:3000/api/gmail/callback \
           JOBPILOT_LEVER_COMPANIES= \
           STRIPE_SECRET_KEY= \
           STRIPE_PRO_PRICE_ID= \
@@ -88,7 +88,7 @@ jobs:
           GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
           GOOGLE_CLIENT_ID: "ci-client-id.apps.googleusercontent.com"
           GOOGLE_CLIENT_SECRET: "ci-client-secret"
-          GOOGLE_REDIRECT_URI: "http://127.0.0.1:3000/api/gmail/callback"
+          GOOGLE_REDIRECT_URI: "https://127.0.0.1:3000/api/gmail/callback"
           JOBPILOT_LEVER_COMPANIES: ""
           STRIPE_SECRET_KEY: ""
           STRIPE_PRO_PRICE_ID: ""
