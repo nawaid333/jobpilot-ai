@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import test, { after } from "node:test";
+import test, { after, before } from "node:test";
 import { PrismaClient } from "@prisma/client";
 
 const baseUrl = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
@@ -32,8 +32,10 @@ async function request(path, options = {}) {
 }
 
 function sessionCookie(response) {
-  const raw = response.headers.get("set-cookie") || "";
-  const match = raw.match(/jobpilot-session=([^;]+)/);
+  const getSetCookie = response.headers.getSetCookie?.bind(response.headers);
+  const values = getSetCookie ? getSetCookie() : [response.headers.get("set-cookie") || ""];
+  const raw = values.join(",");
+  const match = raw.match(/(?:^|,)\s*jobpilot-session=([^;]+)/);
   assert.ok(match, "Expected session cookie");
   return `jobpilot-session=${match[1]}`;
 }
@@ -48,6 +50,13 @@ async function signup(user) {
   assert.ok(body?.user?.id);
   return { id: body.user.id, cookie: sessionCookie(response) };
 }
+
+before(async () => {
+  userA = await signup(users.a);
+  userB = await signup(users.b);
+  cookieA = userA.cookie;
+  cookieB = userB.cookie;
+});
 
 after(async () => {
   try {
@@ -92,11 +101,6 @@ test("invalid JSON returns 400 instead of 500", async () => {
 });
 
 test("two users get isolated application data", async () => {
-  userA = await signup(users.a);
-  userB = await signup(users.b);
-  cookieA = userA.cookie;
-  cookieB = userB.cookie;
-
   jobId = `qa-security-${runId}`;
   const created = await request("/api/applications", {
     method: "POST",
