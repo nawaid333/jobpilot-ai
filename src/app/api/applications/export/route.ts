@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } from "docx";
 import { isResumeTemplateId } from "@/lib/resume-templates";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 type Experience = { role?: string; company?: string; duration?: string; highlights?: string[] };
 type Education = { degree?: string; institution?: string; year?: string };
@@ -13,10 +14,14 @@ const list = (v: unknown) => Array.isArray(v) ? v.map(clean).filter(Boolean) : [
 export async function GET(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = rateLimit(`applications-export:${user.id}`, 10, 60_000);
+  const rateResponse = rateLimitResponse(limited);
+  if (rateResponse) return rateResponse;
   try {
     const params = new URL(req.url).searchParams;
     const id = clean(params.get("applicationId"));
     const requested = params.get("template");
+    if (!id || id.length > 100) return NextResponse.json({ error: "applicationId is required" }, { status: 400 });
     const app = await prisma.application.findFirst({ where: { id, userId: user.id }, include: { job: true, tailoredApplication: true } });
     const profile = await prisma.careerProfile.findUnique({ where: { userId: user.id } });
     if (!app || !profile || !app.tailoredApplication) return NextResponse.json({ error: "Resume source data is incomplete." }, { status: 404 });
