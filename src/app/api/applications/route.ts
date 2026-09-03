@@ -9,8 +9,15 @@ const RANK: Record<string, number> = { Saved: 0, Preparing: 1, Applied: 2, Inter
 const MAX_APPLICATIONS_READ = 100;
 const MAX_BODY_BYTES = 128 * 1024;
 
+class RequestBodyTooLarge extends Error {}
+
 function guard(userId: string, action: string) { return rateLimitResponse(rateLimit(`applications:${action}:${userId}`, action === "read" ? 60 : 30, 60_000)); }
 function bodyTooLarge(req: Request) { const length = req.headers.get("content-length"); return length !== null && Number.isFinite(Number(length)) && Number(length) > MAX_BODY_BYTES; }
+async function readJsonBody(req: Request) {
+  const text = await req.text();
+  if (Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) throw new RequestBodyTooLarge();
+  return JSON.parse(text);
+}
 function originViolation(req: Request) {
   const origin = req.headers.get("origin");
   if (!origin) return false;
@@ -30,7 +37,7 @@ export async function POST(req: Request) {
   if (originViolation(req)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   if (bodyTooLarge(req)) return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
   try {
-    const b = await req.json(); if (!b || typeof b !== "object" || !b.job || typeof b.job !== "object") return NextResponse.json({ error: "Job details are required." }, { status: 400 });
+    const b = await readJsonBody(req); if (!b || typeof b !== "object" || !b.job || typeof b.job !== "object") return NextResponse.json({ error: "Job details are required." }, { status: 400 });
     const rawJob = b.job as Record<string, unknown>;
     const id = stringField(rawJob.id, 300, "Job id"), title = stringField(rawJob.title, 500, "Job title"), company = stringField(rawJob.company, 300, "Company");
     const location = optionalStringField(rawJob.location, 500, "Location") ?? "", mode = optionalStringField(rawJob.mode, 100, "Mode") ?? null, level = optionalStringField(rawJob.level, 100, "Level") ?? null, source = optionalStringField(rawJob.source, 100, "Source") ?? null, salary = optionalStringField(rawJob.salary, 500, "Salary") ?? null, description = optionalStringField(rawJob.description, 20000, "Description") ?? null;
@@ -41,13 +48,13 @@ export async function POST(req: Request) {
     const existing = await prisma.application.findUnique({ where: { userId_jobId: { userId: user.id, jobId: job.id } } }); const requested = b.status ? String(b.status) : "Saved"; const status = existing && RANK[existing.status] > RANK[requested] ? existing.status : requested;
     const application = await prisma.application.upsert({ where: { userId_jobId: { userId: user.id, jobId: job.id } }, create: { userId: user.id, jobId: job.id, status, notes }, update: { status, notes: b.notes === undefined ? undefined : notes }, include: { job: true, tailoredApplication: true } });
     return NextResponse.json({ application }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
-  } catch { return NextResponse.json({ error: "Could not save application." }, { status: 400 }); }
+  } catch (error) { return NextResponse.json({ error: error instanceof RequestBodyTooLarge ? "Request body is too large." : "Could not save application." }, { status: error instanceof RequestBodyTooLarge ? 413 : 400 }); }
 }
 
 export async function PATCH(req: Request) {
   const user = await getCurrentUser(); if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 }); const limited = guard(user.id, "write"); if (limited) return limited;
   if (originViolation(req)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 }); if (bodyTooLarge(req)) return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
-  try { const b = await req.json(); if (!b || typeof b !== "object") return NextResponse.json({ error: "Invalid request." }, { status: 400 }); const id = stringField(b.id, 300, "Application id"); if (b.status && !ALLOWED.includes(b.status)) return NextResponse.json({ error: "Invalid status." }, { status: 400 }); const notes = b.notes === undefined ? undefined : stringField(b.notes, 10000, "Notes"); const existing = await prisma.application.findFirst({ where: { id, userId: user.id } }); if (!existing) return NextResponse.json({ error: "Application not found." }, { status: 404 }); const application = await prisma.application.update({ where: { id: existing.id }, data: { status: b.status || undefined, notes, appliedAt: b.status === "Applied" && !existing.appliedAt ? new Date() : undefined }, include: { job: true, tailoredApplication: true } }); return NextResponse.json({ application }, { headers: { "Cache-Control": "private, no-store, max-age=0" } }); } catch { return NextResponse.json({ error: "Could not update application." }, { status: 400 }); }
+  try { const b = await readJsonBody(req); if (!b || typeof b !== "object") return NextResponse.json({ error: "Invalid request." }, { status: 400 }); const id = stringField(b.id, 300, "Application id"); if (b.status && !ALLOWED.includes(b.status)) return NextResponse.json({ error: "Invalid status." }, { status: 400 }); const notes = b.notes === undefined ? undefined : stringField(b.notes, 10000, "Notes"); const existing = await prisma.application.findFirst({ where: { id, userId: user.id } }); if (!existing) return NextResponse.json({ error: "Application not found." }, { status: 404 }); const application = await prisma.application.update({ where: { id: existing.id }, data: { status: b.status || undefined, notes, appliedAt: b.status === "Applied" && !existing.appliedAt ? new Date() : undefined }, include: { job: true, tailoredApplication: true } }); return NextResponse.json({ application }, { headers: { "Cache-Control": "private, no-store, max-age=0" } }); } catch (error) { return NextResponse.json({ error: error instanceof RequestBodyTooLarge ? "Request body is too large." : "Could not update application." }, { status: error instanceof RequestBodyTooLarge ? 413 : 400 }); }
 }
 
 export async function DELETE(req: Request) {
