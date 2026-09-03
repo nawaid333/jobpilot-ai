@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     config: "unknown",
     ai: process.env.OPENAI_API_KEY ? "configured" : "fallback-mode",
     jobs: process.env.JOBPILOT_LEVER_COMPANIES ? "configured" : "not-configured",
-    payments: "disabled",
+    payments: process.env.JOBPILOT_PAYMENTS_ENABLED === "true" ? "enabled" : "disabled",
   };
 
   try {
