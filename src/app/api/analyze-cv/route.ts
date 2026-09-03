@@ -4,6 +4,7 @@ import { consumeAiCredit } from "@/lib/entitlements";
 import { rateLimit } from "@/lib/rate-limit";
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
+const MAX_REQUEST_SIZE = MAX_FILE_SIZE + 256 * 1024;
 const ALLOWED_TYPES = new Set(["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
 const ANALYSIS_PROMPT = `You are JobPilot AI's CV analysis engine.
 Analyze the uploaded CV for ATS readiness and real job-market usefulness.
@@ -31,12 +32,17 @@ export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "OpenAI API is not configured. Add OPENAI_API_KEY to the server environment." }, { status: 503 });
 
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > MAX_REQUEST_SIZE) return NextResponse.json({ error: "CV upload request is too large." }, { status: 413 });
+
+  let uploadedFileId: string | undefined;
   try {
     const formData = await request.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "Please upload a CV file." }, { status: 400 });
     if (!ALLOWED_TYPES.has(file.type)) return NextResponse.json({ error: "Only PDF and DOCX files are supported." }, { status: 400 });
     if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: "File must be 8 MB or smaller." }, { status: 400 });
+    if (file.name.length > 180) return NextResponse.json({ error: "CV filename is too long." }, { status: 400 });
 
     const credit = await consumeAiCredit(user.id);
     if (!credit.ok) return NextResponse.json({ error: "Monthly AI limit reached.", plan: credit.entitlements.planKey, usage: credit.entitlements.usage, remainingAi: 0 }, { status: 429 });
@@ -46,9 +52,10 @@ export async function POST(request: Request) {
     const fileResponse = await fetch("https://api.openai.com/v1/files", { method: "POST", headers: { Authorization: `Bearer ${apiKey}` }, body: upload });
     if (!fileResponse.ok) return NextResponse.json({ error: "CV upload to the AI service failed." }, { status: 502 });
     const uploaded = (await fileResponse.json()) as { id?: string };
-    if (!uploaded.id) return NextResponse.json({ error: "AI service did not return a file ID." }, { status: 502 });
+    uploadedFileId = uploaded.id;
+    if (!uploadedFileId) return NextResponse.json({ error: "AI service did not return a file ID." }, { status: 502 });
 
-    const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "gpt-5.6-luna", input: [{ role: "user", content: [{ type: "input_text", text: ANALYSIS_PROMPT }, { type: "input_file", file_id: uploaded.id }] }] }) });
+    const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "gpt-5.6-luna", input: [{ role: "user", content: [{ type: "input_text", text: ANALYSIS_PROMPT }, { type: "input_file", file_id: uploadedFileId }] }] }) });
     if (!response.ok) return NextResponse.json({ error: "CV analysis failed." }, { status: 502 });
     const result = await response.json();
     const outputText = typeof result.output_text === "string" ? result.output_text : "";
@@ -59,5 +66,12 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("CV analysis error", error);
     return NextResponse.json({ error: "Unexpected server error while analyzing the CV." }, { status: 500 });
+  } finally {
+    if (uploadedFileId) {
+      void fetch(`https://api.openai.com/v1/files/${encodeURIComponent(uploadedFileId)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${apiKey}` },
+      }).catch(() => undefined);
+    }
   }
 }
