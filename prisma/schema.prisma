@@ -82,6 +82,8 @@ model Job {
   lastSeenAt   DateTime      @updatedAt
   applications Application[]
   emailSignals EmailSignal[]
+  @@index([company])
+  @@index([lastSeenAt])
 }
 
 model Application {
@@ -99,6 +101,7 @@ model Application {
   emailSignals       EmailSignal[]
   @@unique([userId, jobId])
   @@index([userId, status])
+  @@index([userId, createdAt])
 }
 
 model TailoredApplication {
@@ -154,6 +157,7 @@ model EmailSignal {
   @@unique([userId, gmailMessageId])
   @@index([userId, category])
   @@index([applicationId])
+  @@index([userId, receivedAt])
 }
 
 model Subscription {
