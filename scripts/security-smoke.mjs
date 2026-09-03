@@ -205,3 +205,17 @@ test("tailoring input limits reject oversized bodies before AI work", async () =
   });
   assert.equal(response.status, 413);
 });
+
+test("Gmail OAuth state cookie is short-lived and protected", async () => {
+  const { response } = await request("/api/gmail/connect", {
+    headers: { cookie: cookieA },
+  });
+  assert.equal(response.status, 307);
+  const getSetCookie = response.headers.getSetCookie?.bind(response.headers);
+  const values = getSetCookie ? getSetCookie() : [response.headers.get("set-cookie") || ""];
+  const raw = values.join(",");
+  assert.match(raw, /jobpilot-gmail-state=/);
+  assert.match(raw, /HttpOnly/i);
+  assert.match(raw, /SameSite=Lax/i);
+  assert.match(raw, /Max-Age=600/i);
+});
