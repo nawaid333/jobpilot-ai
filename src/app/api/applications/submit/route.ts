@@ -1,16 +1,41 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+
+const MAX_BODY_BYTES = 8_000;
+
+function originViolation(req: Request) {
+  const origin = req.headers.get("origin");
+  if (!origin) return false;
+  try {
+    const expected = new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").origin;
+    return new URL(origin).origin !== expected;
+  } catch {
+    return true;
+  }
+}
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const limited = rateLimit(`application-submit:${user.id}`, 20, 60_000);
+  const limitedResponse = rateLimitResponse(limited);
+  if (limitedResponse) return limitedResponse;
+
+  if (originViolation(req)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (contentLength > MAX_BODY_BYTES) return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
+
   try {
-    const body = await req.json();
-    const id = String(body.applicationId || "");
-    const confirmed = body.confirmed === true;
-    if (!id) return NextResponse.json({ error: "Application id is required." }, { status: 400 });
+    const body = await req.text();
+    if (Buffer.byteLength(body, "utf8") > MAX_BODY_BYTES) return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    const id = typeof parsed.applicationId === "string" ? parsed.applicationId.trim() : "";
+    const confirmed = parsed.confirmed === true;
+    if (!id || id.length > 300) return NextResponse.json({ error: "Application id is required." }, { status: 400 });
     if (!confirmed) return NextResponse.json({ error: "Confirm that you submitted the application first." }, { status: 400 });
 
     const application = await prisma.application.findFirst({
@@ -34,8 +59,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       application: updated,
       submission: { mode: "user-confirmed", listingUrl: updated.job.url },
-    });
+    }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch {
-    return NextResponse.json({ error: "Could not record the application submission." }, { status: 400 });
+    return NextResponse.json({ error: "Could not record the application submission." }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 }
