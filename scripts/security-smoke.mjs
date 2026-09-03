@@ -90,6 +90,8 @@ test("security headers are present", async () => {
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.equal(response.headers.get("referrer-policy"), "strict-origin-when-cross-origin");
   assert.equal(response.headers.get("permissions-policy"), "camera=(), microphone=(), geolocation=()");
+  assert.match(response.headers.get("content-security-policy") || "", /default-src 'self'/);
+  assert.match(response.headers.get("content-security-policy") || "", /frame-ancestors 'none'/);
 });
 
 test("signup rejects malformed input", async () => {
@@ -115,72 +117,39 @@ test("two users get isolated application data", async () => {
   const created = await request("/api/applications", {
     method: "POST",
     headers: { "content-type": "application/json", cookie: cookieA },
-    body: JSON.stringify({
-      job: {
-        id: jobId,
-        title: "Security QA Engineer",
-        company: "JobPilot QA",
-        location: "Remote",
-        mode: "Remote",
-        level: "Mid level",
-        source: "QA",
-        description: "Synthetic security regression job.",
-        skills: ["Testing"],
-        url: "https://example.com/jobs/qa",
-      },
-      status: "Saved",
-    }),
+    body: JSON.stringify({ job: { id: jobId, title: "Security QA Engineer", company: "JobPilot QA", location: "Remote", mode: "Remote", level: "Mid level", source: "QA", description: "Synthetic security regression job.", skills: ["Testing"], url: "https://example.com/jobs/qa" }, status: "Saved" }),
   });
   assert.equal(created.response.status, 200, JSON.stringify(created.body));
   applicationId = created.body?.application?.id;
   assert.ok(applicationId);
-
   const own = await request("/api/applications", { headers: { cookie: cookieA } });
   assert.equal(own.response.status, 200);
   assert.ok(own.body.applications.some((item) => item.id === applicationId));
-
   const other = await request("/api/applications", { headers: { cookie: cookieB } });
   assert.equal(other.response.status, 200);
   assert.equal(other.body.applications.some((item) => item.id === applicationId), false);
-
-  const patch = await request("/api/applications", {
-    method: "PATCH",
-    headers: { "content-type": "application/json", cookie: cookieB },
-    body: JSON.stringify({ id: applicationId, status: "Applied" }),
-  });
+  const patch = await request("/api/applications", { method: "PATCH", headers: { "content-type": "application/json", cookie: cookieB }, body: JSON.stringify({ id: applicationId, status: "Applied" }) });
   assert.equal(patch.response.status, 404);
-
-  const deletion = await request("/api/applications", {
-    method: "DELETE",
-    headers: { "content-type": "application/json", cookie: cookieB },
-    body: JSON.stringify({ id: applicationId }),
-  });
+  const deletion = await request("/api/applications", { method: "DELETE", headers: { "content-type": "application/json", cookie: cookieB }, body: JSON.stringify({ id: applicationId }) });
   assert.equal(deletion.response.status, 404);
-
   const stillOwn = await request("/api/applications", { headers: { cookie: cookieA } });
   assert.ok(stillOwn.body.applications.some((item) => item.id === applicationId));
 });
 
 test("state-changing requests reject an unexpected origin", async () => {
-  const { response } = await request("/api/applications", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin: "https://attacker.example",
-      cookie: cookieA,
-    },
-    body: JSON.stringify({ job: { id: `blocked-${runId}`, title: "Blocked", company: "Blocked", location: "Remote" } }),
-  });
+  const { response } = await request("/api/applications", { method: "POST", headers: { "content-type": "application/json", origin: "https://attacker.example", cookie: cookieA }, body: JSON.stringify({ job: { id: `blocked-${runId}`, title: "Blocked", company: "Blocked", location: "Remote" } }) });
   assert.equal(response.status, 403);
 });
 
+test("Gmail disconnect rejects an unexpected origin", async () => {
+  const { response, body } = await request("/api/gmail/status", { method: "DELETE", headers: { origin: "https://attacker.example", cookie: cookieA } });
+  assert.equal(response.status, 403);
+  assert.equal(body?.error, "Invalid request origin.");
+});
+
 test("expired sessions are rejected", async () => {
-  const expired = await prisma.session.create({
-    data: { userId: userA.id, expiresAt: new Date(Date.now() - 60_000) },
-  });
-  const { response, body } = await request("/api/profile", {
-    headers: { cookie: `jobpilot-session=${expired.id}` },
-  });
+  const expired = await prisma.session.create({ data: { userId: userA.id, expiresAt: new Date(Date.now() - 60_000) } });
+  const { response, body } = await request("/api/profile", { headers: { cookie: `jobpilot-session=${expired.id}` } });
   assert.equal(response.status, 401);
   assert.equal(body?.error, "Unauthorized");
   assert.equal(await prisma.session.findUnique({ where: { id: expired.id } }), null);
@@ -188,28 +157,18 @@ test("expired sessions are rejected", async () => {
 
 test("application input limits reject oversized bodies", async () => {
   const oversized = JSON.stringify({ job: { id: `large-${runId}`, title: "Large", company: "Large", location: "Remote" }, notes: "x".repeat(140_000) });
-  const { response } = await request("/api/applications", {
-    method: "POST",
-    headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(oversized)), cookie: cookieA },
-    body: oversized,
-  });
+  const { response } = await request("/api/applications", { method: "POST", headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(oversized)), cookie: cookieA }, body: oversized });
   assert.equal(response.status, 413);
 });
 
 test("tailoring input limits reject oversized bodies before AI work", async () => {
   const oversized = JSON.stringify({ jobId: "x".repeat(200), padding: "x".repeat(65_000) });
-  const { response } = await request("/api/tailor", {
-    method: "POST",
-    headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(oversized)), cookie: cookieA },
-    body: oversized,
-  });
+  const { response } = await request("/api/tailor", { method: "POST", headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(oversized)), cookie: cookieA }, body: oversized });
   assert.equal(response.status, 413);
 });
 
 test("Gmail OAuth state cookie is short-lived and protected", async () => {
-  const { response } = await request("/api/gmail/connect", {
-    headers: { cookie: cookieA },
-  });
+  const { response } = await request("/api/gmail/connect", { headers: { cookie: cookieA } });
   assert.equal(response.status, 307);
   const getSetCookie = response.headers.getSetCookie?.bind(response.headers);
   const values = getSetCookie ? getSetCookie() : [response.headers.get("set-cookie") || ""];
