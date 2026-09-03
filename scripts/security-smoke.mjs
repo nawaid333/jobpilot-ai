@@ -187,7 +187,7 @@ test("expired sessions are rejected", async () => {
 });
 
 test("application input limits reject oversized bodies", async () => {
-  const oversized = JSON.stringify({ job: { id: `large-${runId}`, title: "Large", company: "Large", location: "Remote" }, notes: "x".repeat(130_000) });
+  const oversized = JSON.stringify({ job: { id: `large-${runId}`, title: "Large", company: "Large", location: "Remote" }, notes: "x".repeat(140_000) });
   const { response } = await request("/api/applications", {
     method: "POST",
     headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(oversized)), cookie: cookieA },
