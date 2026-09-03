@@ -102,6 +102,7 @@ model Application {
   @@unique([userId, jobId])
   @@index([userId, status])
   @@index([userId, createdAt])
+  @@index([userId, updatedAt])
 }
 
 model TailoredApplication {
