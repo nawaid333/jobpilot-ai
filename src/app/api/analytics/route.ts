@@ -58,5 +58,5 @@ export async function GET() {
     aging,
     companies: Array.from(companies.entries()).map(([company, value]) => ({ company, ...value })).sort((a, b) => b.applications - a.applications).slice(0, 6),
     insights,
-  });
+  }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }
