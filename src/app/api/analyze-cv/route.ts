@@ -48,8 +48,6 @@ export async function POST(request: Request) {
     if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: "File must be 8 MB or smaller." }, { status: 400 });
     if (file.name.length > 180) return NextResponse.json({ error: "CV filename is too long." }, { status: 400 });
 
-    const credit = await consumeAiCredit(user.id);
-    if (!credit.ok) return NextResponse.json({ error: "Monthly AI limit reached.", plan: credit.entitlements.planKey, usage: credit.entitlements.usage, remainingAi: 0 }, { status: 429 });
     const upload = new FormData();
     upload.append("purpose", "user_data");
     upload.append("file", file, file.name);
@@ -66,6 +64,11 @@ export async function POST(request: Request) {
     const cleaned = outputText.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
     let analysis: unknown;
     try { analysis = JSON.parse(cleaned); } catch { return NextResponse.json({ error: "The AI returned an invalid analysis format." }, { status: 502 }); }
+
+    // Consume the AI credit only after a successful analysis so failed uploads,
+    // provider errors, and malformed AI responses do not charge the user.
+    const credit = await consumeAiCredit(user.id);
+    if (!credit.ok) return NextResponse.json({ error: "Monthly AI limit reached.", plan: credit.entitlements.planKey, usage: credit.entitlements.usage, remainingAi: 0 }, { status: 429 });
     return NextResponse.json({ analysis, remainingAi: credit.entitlements.remainingAi });
   } catch (error) {
     console.error("CV analysis error", error);
