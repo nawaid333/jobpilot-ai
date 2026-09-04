@@ -11,6 +11,7 @@ export default function AgentPage() {
   async function load() {
     setError("");
     const res = await fetch("/api/agent", { cache: "no-store" });
+    if (res.status === 401) { window.location.href = "/login"; return; }
     if (!res.ok) { setError("Could not load the agent queue."); return; }
     setData(await res.json());
   }
@@ -32,7 +33,8 @@ export default function AgentPage() {
     if (action.type === "tailor") return `/tailor?applicationId=${encodeURIComponent(action.applicationId)}`;
     if (action.type === "interview") return `/interview?applicationId=${encodeURIComponent(action.applicationId)}`;
     if (action.type === "follow-up") return `/intelligence?applicationId=${encodeURIComponent(action.applicationId)}`;
-    if (action.type === "review" || action.type === "assessment") return "/intelligence";
+    if (action.type === "review") return `/intelligence?signalId=${encodeURIComponent(action.signalId)}`;
+    if (action.type === "assessment") return `/intelligence?applicationId=${encodeURIComponent(action.applicationId)}`;
     if (action.type === "offer") return "/tracker";
     return "/tracker";
   };
