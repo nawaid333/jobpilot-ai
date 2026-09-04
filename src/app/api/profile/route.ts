@@ -59,12 +59,14 @@ async function readBody(req: Request) {
   return new TextDecoder().decode(bytes);
 }
 
+const profileInclude = { user: { select: { name: true } } } as const;
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const [profile, preferences] = await Promise.all([
-      prisma.careerProfile.findUnique({ where: { userId: user.id } }),
+      prisma.careerProfile.findUnique({ where: { userId: user.id }, include: profileInclude }),
       prisma.jobPreferences.findUnique({ where: { userId: user.id } }),
     ]);
     return NextResponse.json({ profile, preferences }, { headers: { "Cache-Control": "private, no-store" } });
@@ -102,11 +104,13 @@ export async function PUT(req: Request) {
       seniority: ["Any", "Entry level", "Mid level", "Senior", "Lead / Manager"].includes(pref.seniority) ? pref.seniority : "Any",
       minSalary: text(pref.minSalary, 500), keywords: text(pref.keywords, 3000),
     };
-    const [profile, preferences] = await prisma.$transaction([
+    const [profile] = await prisma.$transaction([
       prisma.careerProfile.upsert({ where: { userId: user.id }, create: { userId: user.id, ...profileData }, update: profileData }),
       prisma.jobPreferences.upsert({ where: { userId: user.id }, create: { userId: user.id, ...preferencesData }, update: preferencesData }),
     ]);
-    return NextResponse.json({ profile, preferences }, { headers: { "Cache-Control": "private, no-store" } });
+    const profileWithUser = await prisma.careerProfile.findUnique({ where: { id: profile.id }, include: profileInclude });
+    const preferences = await prisma.jobPreferences.findUnique({ where: { userId: user.id } });
+    return NextResponse.json({ profile: profileWithUser, preferences }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     return NextResponse.json({ error: "Invalid profile data." }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
