@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 const checks = [
+  ["production build", "npm", ["run", "build"]],
   ["security smoke", "npm", ["run", "test:security"]],
   ["application status regression", "npm", ["run", "test:application-status"]],
 ];
@@ -18,4 +19,4 @@ for (const [name, command, args] of checks) {
 }
 
 if (failed) process.exit(1);
-console.log("\nQA smoke suite passed.");
+console.log("\nQA preflight passed: production build and regression suites are green.");
