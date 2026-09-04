@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     const requested = b.status ? String(b.status) : "Saved";
     if (existing?.status === "Rejected" && requested !== "Rejected") return NextResponse.json({ error: "Rejected applications cannot be reopened through this action." }, { status: 409 });
     const status = existing && RANK[existing.status] > RANK[requested] ? existing.status : requested;
-    const application = await prisma.application.upsert({ where: { userId_jobId: { userId: user.id, jobId: job.id } }, create: { userId: user.id, jobId: job.id, status, notes }, update: { status, notes: b.notes === undefined ? undefined : notes }, include: { job: true, tailoredApplication: true } });
+    const application = await prisma.application.upsert({ where: { userId_jobId: { userId: user.id, jobId: job.id } }, create: { userId: user.id, jobId: job.id, status, notes, appliedAt: status === "Applied" ? new Date() : undefined }, update: { status, notes: b.notes === undefined ? undefined : notes, appliedAt: status === "Applied" && !existing?.appliedAt ? new Date() : undefined }, include: { job: true, tailoredApplication: true } });
     return NextResponse.json({ application }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch (error) { return NextResponse.json({ error: error instanceof RequestBodyTooLarge ? "Request body is too large." : "Could not save application." }, { status: error instanceof RequestBodyTooLarge ? 413 : 400 }); }
 }
