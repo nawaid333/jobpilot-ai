@@ -4,6 +4,34 @@ import { prisma } from "@/lib/prisma";
 import { consumeAiCredit } from "@/lib/entitlements";
 import { rateLimit } from "@/lib/rate-limit";
 
+const MAX_BODY_BYTES = 32_000;
+
+async function readJson(req: Request) {
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (contentLength > MAX_BODY_BYTES) throw new Error("Request is too large.");
+  if (!req.body) throw new Error("Invalid request body.");
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_BODY_BYTES) {
+      await reader.cancel();
+      throw new Error("Request is too large.");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
 function fallbackQuestions(job: { title: string; company: string; description: string | null }, profile: any) {
   const skills = Array.isArray(profile?.skills) ? profile.skills.slice(0, 5).join(", ") : "your relevant skills";
   return [
@@ -21,8 +49,9 @@ function validQuestions(value: unknown) { if (!value || typeof value !== "object
 export async function POST(req: Request) {
   const user=await getCurrentUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const limit=rateLimit(`interview:${user.id}`,10,60_000); if(!limit.ok)return NextResponse.json({error:"Too many Interview Coach requests. Please try again shortly."},{status:429,headers:{"Retry-After":String(limit.retryAfterSeconds)}});
-  const contentLength=Number(req.headers.get("content-length")||0); if(contentLength>32_000)return NextResponse.json({error:"Request is too large."},{status:413});
-  const body=await req.json().catch(()=>null); if(!body||typeof body!=="object"||Array.isArray(body))return NextResponse.json({error:"Invalid request body."},{status:400});
+  let body: unknown;
+  try { body = await readJson(req); } catch (error) { return NextResponse.json({error:error instanceof Error && error.message === "Request is too large." ? error.message : "Invalid request body."},{status:error instanceof Error && error.message === "Request is too large." ? 413 : 400}); }
+  if(!body||typeof body!=="object"||Array.isArray(body))return NextResponse.json({error:"Invalid request body."},{status:400});
   const applicationId=typeof (body as any).applicationId==="string"?(body as any).applicationId.trim():""; const mode=(body as any).mode==="feedback"?"feedback":"questions";
   if(!applicationId||applicationId.length>100)return NextResponse.json({error:"applicationId is required"},{status:400});
   const application=await prisma.application.findFirst({where:{id:applicationId,userId:user.id},include:{job:true}}); if(!application)return NextResponse.json({error:"Application not found"},{status:404});
