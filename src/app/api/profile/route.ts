@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const MAX_BODY_BYTES = 128_000;
 const MAX_TEXT = 12000;
@@ -24,6 +25,40 @@ function objectList(value: unknown, keys: string[]) {
   });
 }
 
+function originViolation(req: Request) {
+  const origin = req.headers.get("origin");
+  if (!origin) return false;
+  try {
+    const expected = new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").origin;
+    return new URL(origin).origin !== expected;
+  } catch {
+    return true;
+  }
+}
+
+async function readBody(req: Request) {
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (contentLength > MAX_BODY_BYTES) return null;
+  const reader = req.body?.getReader();
+  if (!reader) return null;
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_BODY_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder().decode(bytes);
+}
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -41,27 +76,13 @@ export async function GET() {
 export async function PUT(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = rateLimitResponse(rateLimit(`profile-write:${user.id}`, 30, 60_000));
+  if (limited) return limited;
+  if (originViolation(req)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   try {
-    const contentLength = Number(req.headers.get("content-length") || 0);
-    if (contentLength > MAX_BODY_BYTES) return NextResponse.json({ error: "Request is too large." }, { status: 413 });
-    const reader = req.body?.getReader();
-    if (!reader) return NextResponse.json({ error: "Request body is required." }, { status: 400 });
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > MAX_BODY_BYTES) {
-        await reader.cancel();
-        return NextResponse.json({ error: "Request is too large." }, { status: 413 });
-      }
-      chunks.push(value);
-    }
-    const bytes = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    const body = JSON.parse(new TextDecoder().decode(bytes));
+    const bodyText = await readBody(req);
+    if (bodyText === null) return NextResponse.json({ error: "Request is too large or body is missing." }, { status: 413 });
+    const body = JSON.parse(bodyText);
     const p = body?.profile && typeof body.profile === "object" ? body.profile : {};
     const pref = body?.preferences && typeof body.preferences === "object" ? body.preferences : {};
     const candidate = p.candidate && typeof p.candidate === "object" ? p.candidate : {};
