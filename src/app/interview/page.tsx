@@ -20,11 +20,22 @@ export default function InterviewPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linkedApplicationId = params.get("applicationId")?.trim() || "";
+    if (linkedApplicationId) setApplicationId(linkedApplicationId);
+
     fetch("/api/applications")
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : data.applications || [];
-        setApplications(items.filter((a: Application) => !["Rejected", "Offer"].includes(a.status)));
+        const active = items.filter((a: Application) => !["Rejected", "Offer"].includes(a.status));
+        setApplications(active);
+        if (linkedApplicationId && active.some((a: Application) => a.id === linkedApplicationId)) {
+          setApplicationId(linkedApplicationId);
+        } else if (linkedApplicationId) {
+          setApplicationId("");
+          setError("That application is no longer available for interview practice.");
+        }
       })
       .catch(() => setError("Could not load your applications."));
   }, []);
