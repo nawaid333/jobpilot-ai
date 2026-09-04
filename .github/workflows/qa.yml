@@ -18,6 +18,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Dependency security audit
+        run: npm audit --audit-level=high --omit=dev
       - name: TypeScript typecheck
         run: npm run typecheck
       - name: Production build
