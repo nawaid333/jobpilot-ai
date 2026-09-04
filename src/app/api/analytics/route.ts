@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const DAY = 86400000;
+const SIGNAL_CATEGORIES = new Set(["interview", "assessment", "offer", "rejection"]);
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -20,13 +21,27 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
     });
 
-    const count = (status: string) => applications.filter((a) => a.status === status).length;
+    const counts: Record<string, number> = { Applied: 0, Interview: 0, Offer: 0, Rejected: 0 };
+    let responseSignals = 0;
+    const companies = new Map<string, { applications: number; interviews: number; offers: number }>();
+
+    for (const application of applications) {
+      if (counts[application.status] !== undefined) counts[application.status]++;
+      if (application.emailSignals.some((signal) => SIGNAL_CATEGORIES.has(signal.category))) responseSignals++;
+
+      const row = companies.get(application.job.company) || { applications: 0, interviews: 0, offers: 0 };
+      row.applications++;
+      if (application.status === "Interview" || application.status === "Offer") row.interviews++;
+      if (application.status === "Offer") row.offers++;
+      companies.set(application.job.company, row);
+    }
+
+    const count = (status: string) => counts[status] || 0;
     const tracked = applications.length;
     const applied = count("Applied") + count("Interview") + count("Offer");
     const interviews = count("Interview") + count("Offer");
     const offers = count("Offer");
     const rejected = count("Rejected");
-    const responseSignals = applications.filter((a) => a.emailSignals.some((s) => ["interview", "assessment", "offer", "rejection"].includes(s.category)));
     const pct = (n: number, d: number) => d ? Math.round((n / d) * 100) : 0;
 
     const funnel = [
@@ -38,17 +53,15 @@ export async function GET() {
 
     const aging = applications
       .filter((a) => !["Rejected", "Offer"].includes(a.status))
-      .map((a) => ({ applicationId: a.id, title: a.job.title, company: a.job.company, status: a.status, days: Math.max(0, Math.floor((Date.now() - new Date(a.updatedAt).getTime()) / DAY)) }))
-      .sort((a, b) => b.days - a.days).slice(0, 6);
-
-    const companies = new Map<string, { applications: number; interviews: number; offers: number }>();
-    for (const a of applications) {
-      const row = companies.get(a.job.company) || { applications: 0, interviews: 0, offers: 0 };
-      row.applications++;
-      if (["Interview", "Offer"].includes(a.status)) row.interviews++;
-      if (a.status === "Offer") row.offers++;
-      companies.set(a.job.company, row);
-    }
+      .map((a) => ({
+        applicationId: a.id,
+        title: a.job.title,
+        company: a.job.company,
+        status: a.status,
+        days: Math.max(0, Math.floor((Date.now() - new Date(a.updatedAt).getTime()) / DAY)),
+      }))
+      .sort((a, b) => b.days - a.days)
+      .slice(0, 6);
 
     const insights: string[] = [];
     if (!tracked) insights.push("Track a few genuinely relevant roles to establish a useful baseline.");
@@ -59,7 +72,7 @@ export async function GET() {
     if (responseSignals.length && applied) insights.push(`${pct(responseSignals.length, applied)}% of your applied-stage applications have a meaningful recruiting signal recorded.`);
 
     return NextResponse.json({
-      summary: { tracked, applied, interviews, offers, rejected, responseRate: pct(responseSignals.length, applied), interviewRate: pct(interviews, applied), offerRate: pct(offers, applied), rejectionRate: pct(rejected, applied) },
+      summary: { tracked, applied, interviews, offers, rejected, responseRate: pct(responseSignals, applied), interviewRate: pct(interviews, applied), offerRate: pct(offers, applied), rejectionRate: pct(rejected, applied) },
       funnel,
       aging,
       companies: Array.from(companies.entries()).map(([company, value]) => ({ company, ...value })).sort((a, b) => b.applications - a.applications).slice(0, 6),
