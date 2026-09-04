@@ -24,6 +24,20 @@ Return ONLY valid JSON with this shape:
 }
 ATS score must be evidence-based. Do not claim the score guarantees ATS success or a job.`;
 
+function isValidAnalysis(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const a = value as Record<string, unknown>;
+  if (typeof a.atsScore !== "number" || !Number.isFinite(a.atsScore) || a.atsScore < 0 || a.atsScore > 100) return false;
+  if (typeof a.summary !== "string") return false;
+  for (const key of ["skills", "experience", "education", "strengths", "improvements", "atsChecks", "targetRoles"]) {
+    if (!Array.isArray(a[key])) return false;
+  }
+  if (!a.candidate || typeof a.candidate !== "object" || Array.isArray(a.candidate)) return false;
+  const candidate = a.candidate as Record<string, unknown>;
+  if (!["name", "headline", "location"].every((key) => candidate[key] === null || typeof candidate[key] === "string")) return false;
+  return true;
+}
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,7 +51,6 @@ export async function POST(request: Request) {
 
   let uploadedFileId: string | undefined;
   try {
-    // Check the real request size as well: Content-Length can be absent or inaccurate.
     const bodyBytes = await request.clone().arrayBuffer();
     if (bodyBytes.byteLength > MAX_REQUEST_SIZE) return NextResponse.json({ error: "CV upload request is too large." }, { status: 413 });
 
@@ -64,9 +77,8 @@ export async function POST(request: Request) {
     const cleaned = outputText.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
     let analysis: unknown;
     try { analysis = JSON.parse(cleaned); } catch { return NextResponse.json({ error: "The AI returned an invalid analysis format." }, { status: 502 }); }
+    if (!isValidAnalysis(analysis)) return NextResponse.json({ error: "The AI returned an incomplete analysis format." }, { status: 502 });
 
-    // Consume the AI credit only after a successful analysis so failed uploads,
-    // provider errors, and malformed AI responses do not charge the user.
     const credit = await consumeAiCredit(user.id);
     if (!credit.ok) return NextResponse.json({ error: "Monthly AI limit reached.", plan: credit.entitlements.planKey, usage: credit.entitlements.usage, remainingAi: 0 }, { status: 429 });
     return NextResponse.json({ analysis, remainingAi: credit.entitlements.remainingAi });
@@ -75,10 +87,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unexpected server error while analyzing the CV." }, { status: 500 });
   } finally {
     if (uploadedFileId) {
-      void fetch(`https://api.openai.com/v1/files/${encodeURIComponent(uploadedFileId)}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${apiKey}` },
-      }).catch(() => undefined);
+      void fetch(`https://api.openai.com/v1/files/${encodeURIComponent(uploadedFileId)}`, { method: "DELETE", headers: { Authorization: `Bearer ${apiKey}` } }).catch(() => undefined);
     }
   }
 }
