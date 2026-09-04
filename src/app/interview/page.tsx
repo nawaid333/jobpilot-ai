@@ -68,6 +68,7 @@ export default function InterviewPage() {
   function next() { setFeedback(null); setAnswer(""); setIndex(i => Math.min(i + 1, questions.length - 1)); }
   const app = applications.find(a => a.id === applicationId);
   const q = questions[index];
+  const complete = Boolean(feedback && index === questions.length - 1);
 
   return <main className="interview-page"><nav className="nav shell"><Link className="brand" href="/"><span className="brand-mark">✦</span>JobPilot<span className="brand-ai">AI</span></Link><div className="nav-actions"><Link href="/dashboard">Command Center</Link><Link className="nav-cta" href="/tracker">Tracker ↗</Link></div></nav>
     <section className="interview-shell shell">
@@ -95,7 +96,7 @@ export default function InterviewPage() {
             <div className="question-card"><h2>{q.question}</h2><p><strong>Why this matters:</strong> {q.why}</p></div>
             <textarea className="answer-box" value={answer} onChange={e => setAnswer(e.target.value)} placeholder="Write your answer as if you were speaking to the interviewer…" />
             <div className="answer-actions"><button className="button primary" disabled={!answer.trim() || loading} onClick={review}>{loading ? "Reviewing…" : mode === "rules" ? "Review answer →" : "Get AI feedback →"}</button>{feedback && index < questions.length - 1 && <button className="button secondary" onClick={next}>Next question →</button>}</div>
-            {feedback && <div className="feedback-card"><div className="feedback-top"><div><div className="kicker">COACH FEEDBACK · {mode === "ai" ? "AI" : "EVIDENCE RULES"}</div><h3>{feedback.verdict}</h3></div>{feedback.score != null && <strong>{feedback.score}<small>/100</small></strong>}</div><div className="feedback-cols"><div><b>WHAT WORKED</b><ul>{feedback.strengths?.map((x,i)=><li key={i}>{x}</li>)}</ul></div><div><b>IMPROVE</b><ul>{feedback.improvements?.map((x,i)=><li key={i}>{x}</li>)}</ul></div></div><div className="follow-question"><b>Coach follow-up</b><span>{feedback.followUp}</span></div></div>}
+            {feedback && <div className="feedback-card"><div className="feedback-top"><div><div className="kicker">COACH FEEDBACK · {mode === "ai" ? "AI" : "EVIDENCE RULES"}</div><h3>{feedback.verdict}</h3></div>{feedback.score != null && <strong>{feedback.score}<small>/100</small></strong>}</div><div className="feedback-cols"><div><b>WHAT WORKED</b><ul>{feedback.strengths?.map((x,i)=><li key={i}>{x}</li>)}</ul></div><div><b>IMPROVE</b><ul>{feedback.improvements?.map((x,i)=><li key={i}>{x}</li>)}</ul></div></div><div className="follow-question"><b>Coach follow-up</b><span>{feedback.followUp}</span></div>{complete&&<div className="interview-complete"><strong>Practice complete</strong><span>You finished this prep set for {app?.job.title || "your target role"}. Review your feedback above, then continue with your application.</span><div><Link className="button secondary" href="/tracker">Back to tracker ↗</Link><button className="button secondary" onClick={()=>{setQuestions([]);setFeedback(null);setAnswer("");setIndex(0)}}>Practice again</button></div></div>}</div>}
           </>}
         </section>
       </div>
