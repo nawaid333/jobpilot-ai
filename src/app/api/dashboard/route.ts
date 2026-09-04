@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(){
  const user=await getCurrentUser();
