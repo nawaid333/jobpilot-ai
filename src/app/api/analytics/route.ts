@@ -69,7 +69,7 @@ export async function GET() {
     if (applied && interviews === 0) insights.push("Applications have not converted to interviews yet. Review job fit, ATS alignment, and tailoring before increasing application volume.");
     if (interviews > 0) insights.push(`${interviews} application${interviews === 1 ? " has" : "s have"} reached interview stage. Prioritize preparation over adding low-fit applications.`);
     if (offers > 0) insights.push(`${offers} offer${offers === 1 ? " is" : "s are"} in the pipeline. Review the offer details before making a decision.`);
-    if (responseSignals.length && applied) insights.push(`${pct(responseSignals.length, applied)}% of your applied-stage applications have a meaningful recruiting signal recorded.`);
+    if (responseSignals && applied) insights.push(`${pct(responseSignals, applied)}% of your applied-stage applications have a meaningful recruiting signal recorded.`);
 
     return NextResponse.json({
       summary: { tracked, applied, interviews, offers, rejected, responseRate: pct(responseSignals, applied), interviewRate: pct(interviews, applied), offerRate: pct(offers, applied), rejectionRate: pct(rejected, applied) },
