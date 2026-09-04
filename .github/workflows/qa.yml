@@ -5,6 +5,10 @@ on:
     branches: ["qa/security-e2e"]
   pull_request:
 
+# CI only needs to read repository contents; keep the token least-privileged.
+permissions:
+  contents: read
+
 jobs:
   qa:
     runs-on: ubuntu-latest
