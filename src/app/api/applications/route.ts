@@ -36,7 +36,12 @@ export async function POST(req: Request) {
     const url = rawJob.url ? safeHttpUrl(rawJob.url, "Job URL") : null; const skills = rawJob.skills === undefined ? [] : stringArrayField(rawJob.skills, 100, 200, "Skills");
     if (b.status && !ALLOWED.includes(b.status)) return NextResponse.json({ error: "Invalid status." }, { status: 400 });
     const notes = b.notes === undefined ? "" : stringField(b.notes, 10000, "Notes");
-    const job = await prisma.job.upsert({ where: { id }, create: { id, title, company, location, mode, level, source, salary, url, description, skills }, update: { title, company, location, mode, level, source, salary, url, description, skills } });
+
+    // Jobs are shared records. Never overwrite an existing job from an authenticated user's request;
+    // otherwise a user could mutate a job referenced by another user's application.
+    const existingJob = await prisma.job.findUnique({ where: { id } });
+    const job = existingJob ?? await prisma.job.create({ data: { id, title, company, location, mode, level, source, salary, url, description, skills } });
+
     const existing = await prisma.application.findUnique({ where: { userId_jobId: { userId: user.id, jobId: job.id } } });
     const requested = b.status ? String(b.status) : "Saved";
     if (existing?.status === "Rejected" && requested !== "Rejected") return NextResponse.json({ error: "Rejected applications cannot be reopened through this action." }, { status: 409 });
