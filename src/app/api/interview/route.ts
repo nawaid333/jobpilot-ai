@@ -13,15 +13,8 @@ async function readJson(req: Request) {
   const reader = req.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > MAX_BODY_BYTES) { await reader.cancel(); throw new Error("Request is too large."); }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
+  while (true) { const { done, value } = await reader.read(); if (done) break; total += value.byteLength; if (total > MAX_BODY_BYTES) { await reader.cancel(); throw new Error("Request is too large."); } chunks.push(value); }
+  const bytes = new Uint8Array(total); let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
   return JSON.parse(new TextDecoder().decode(bytes));
 }
@@ -40,38 +33,24 @@ function fallbackQuestions(job: { title: string; company: string; description: s
 function rulesFeedback() { return { score: null, verdict: "Evidence review", strengths: ["You answered the question directly."], improvements: ["Add a specific situation, your actions, and a measurable or observable result where truthful."], followUp: "What was your specific contribution and what changed because of it?" }; }
 function validFeedback(value: unknown) { if (!value || typeof value !== "object") return null; const x=value as Record<string,unknown>; const score=typeof x.score==="number"&&Number.isFinite(x.score)?Math.max(0,Math.min(100,Math.round(x.score))):null; return {score,verdict:typeof x.verdict==="string"?x.verdict.slice(0,300):"Evidence review",strengths:Array.isArray(x.strengths)?x.strengths.filter((v):v is string=>typeof v==="string").slice(0,3).map(v=>v.slice(0,500)):[],improvements:Array.isArray(x.improvements)?x.improvements.filter((v):v is string=>typeof v==="string").slice(0,3).map(v=>v.slice(0,500)):[],followUp:typeof x.followUp==="string"?x.followUp.slice(0,1000):"What was your specific contribution and what changed because of it?"}; }
 function validQuestions(value: unknown) { if (!value || typeof value !== "object") return []; const x=value as Record<string,unknown>; if(!Array.isArray(x.questions))return []; return x.questions.slice(0,8).filter((q):q is Record<string,unknown>=>!!q&&typeof q==="object").map((q,i)=>({id:`q${i+1}`,type:typeof q.type==="string"&&["behavioral","skills","role","experience","motivation"].includes(q.type)?q.type:"role",question:typeof q.question==="string"?q.question.slice(0,1000):"",why:typeof q.why==="string"?q.why.slice(0,500):"Tests role fit."})).filter(q=>q.question); }
-async function saveFeedback(applicationId: string, question: string, answer: string, feedback: ReturnType<typeof rulesFeedback>, mode: string) {
-  await prisma.interviewSession.create({ data: { applicationId, question, answer, feedback, mode, score: feedback.score } });
-}
+async function saveFeedback(applicationId: string, question: string, answer: string, feedback: ReturnType<typeof rulesFeedback>, mode: string) { await prisma.interviewSession.create({ data: { applicationId, question, answer, feedback, mode, score: feedback.score } }); }
 
 export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const url = new URL(req.url);
-  const applicationId = url.searchParams.get("applicationId")?.trim() || "";
-  if (!applicationId || applicationId.length > 100) {
-    return NextResponse.json({ error: "applicationId is required" }, { status: 400 });
-  }
-
+  const user = await getCurrentUser(); if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const url = new URL(req.url); const applicationId = url.searchParams.get("applicationId")?.trim() || "";
+  if (!applicationId || applicationId.length > 100) return NextResponse.json({ error: "applicationId is required" }, { status: 400 });
+  const rawLimit = url.searchParams.get("limit"); const limit = rawLimit === null ? 50 : Number(rawLimit);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50) return NextResponse.json({ error: "limit must be an integer between 1 and 50" }, { status: 400 });
   const application = await prisma.application.findFirst({ where: { id: applicationId, userId: user.id }, select: { id: true } });
   if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
-
-  const sessions = await prisma.interviewSession.findMany({
-    where: { applicationId: application.id },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    select: { id: true, question: true, answer: true, feedback: true, mode: true, score: true, createdAt: true }
-  });
-
+  const sessions = await prisma.interviewSession.findMany({ where: { applicationId: application.id }, orderBy: { createdAt: "desc" }, take: limit, select: { id: true, question: true, answer: true, feedback: true, mode: true, score: true, createdAt: true } });
   return NextResponse.json({ sessions });
 }
 
 export async function POST(req: Request) {
   const user=await getCurrentUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const limit=rateLimit(`interview:${user.id}`,10,60_000); if(!limit.ok)return NextResponse.json({error:"Too many Interview Coach requests. Please try again shortly."},{status:429,headers:{"Retry-After":String(limit.retryAfterSeconds)}});
-  let body: unknown;
-  try { body = await readJson(req); } catch (error) { return NextResponse.json({error:error instanceof Error && error.message === "Request is too large." ? error.message : "Invalid request body."},{status:error instanceof Error && error.message === "Request is too large." ? 413 : 400}); }
+  let body: unknown; try { body = await readJson(req); } catch (error) { return NextResponse.json({error:error instanceof Error && error.message === "Request is too large." ? error.message : "Invalid request body."},{status:error instanceof Error && error.message === "Request is too large." ? 413 : 400}); }
   if(!body||typeof body!=="object"||Array.isArray(body))return NextResponse.json({error:"Invalid request body."},{status:400});
   const applicationId=typeof (body as any).applicationId==="string"?(body as any).applicationId.trim():""; const mode=(body as any).mode==="feedback"?"feedback":"questions";
   if(!applicationId||applicationId.length>100)return NextResponse.json({error:"applicationId is required"},{status:400});
