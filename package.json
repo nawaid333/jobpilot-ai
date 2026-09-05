@@ -12,6 +12,8 @@
     "test:application-status": "node --test scripts/application-status-regression.mjs",
     "test:interview-history": "node --test scripts/interview-history-regression.mjs",
     "test:gmail-signal-approval": "node --test scripts/gmail-signal-approval-regression.mjs",
+    "test:gmail-signal-matching": "node --test scripts/gmail-signal-matching-regression.mjs",
+    "test:agent-action": "node --test scripts/agent-action-regression.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
