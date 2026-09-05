@@ -105,9 +105,10 @@ export async function PUT(req: Request) {
       minSalary: text(pref.minSalary, 500), keywords: text(pref.keywords, 3000),
     };
     const [profile] = await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: { name: text(candidate.name, 500) || null } }),
       prisma.careerProfile.upsert({ where: { userId: user.id }, create: { userId: user.id, ...profileData }, update: profileData }),
       prisma.jobPreferences.upsert({ where: { userId: user.id }, create: { userId: user.id, ...preferencesData }, update: preferencesData }),
-    ]);
+    ]).then(results => [results[1]]);
     const profileWithUser = await prisma.careerProfile.findUnique({ where: { id: profile.id }, include: profileInclude });
     const preferences = await prisma.jobPreferences.findUnique({ where: { userId: user.id } });
     return NextResponse.json({ profile: profileWithUser, preferences }, { headers: { "Cache-Control": "private, no-store" } });
