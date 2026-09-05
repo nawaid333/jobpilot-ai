@@ -74,3 +74,17 @@ test("invalid status transitions are rejected", async () => {
     assert.equal(result.response.status, 400, `Expected invalid status ${status} to be rejected`);
   }
 });
+
+test("status transitions cannot move backward", async () => {
+  const created = await createApplication(`backward-transition-regression-${runId}`, "Interview");
+  assert.equal(created.response.status, 200, JSON.stringify(created.body));
+  const id = created.body.application.id;
+  for (const status of ["Applied", "Preparing", "Saved"]) {
+    const result = await request("/api/applications", { method: "PATCH", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ id, status }) });
+    assert.equal(result.response.status, 409, `Expected backward transition to ${status} to be rejected`);
+    assert.equal(result.body?.error, "Application status cannot move backwards.");
+  }
+  const unchanged = await request("/api/applications", { headers: { cookie } });
+  assert.equal(unchanged.response.status, 200);
+  assert.equal(unchanged.body.applications.find((item) => item.id === id)?.status, "Interview", "Rejected backward transition must preserve the current status");
+});
