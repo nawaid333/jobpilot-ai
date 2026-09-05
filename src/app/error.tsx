@@ -1,19 +1,24 @@
 "use client";
 
-import { useEffect } from "react";
+import Link from "next/link";
 
 export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  useEffect(() => {
-    // Keep production diagnostics out of the UI; the hosting platform can capture the error.
-  }, []);
-
   return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "2rem" }}>
-      <section style={{ maxWidth: 520, textAlign: "center" }}>
-        <p style={{ fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" }}>JobPilot AI</p>
-        <h1>Something went wrong</h1>
-        <p>We couldn’t load this page. Try again, or return to your dashboard.</p>
-        <button type="button" onClick={() => reset()}>Try again</button>
+    <main className="analyze-page">
+      <nav className="nav shell">
+        <Link className="brand" href="/"><span className="brand-mark">✦</span>JobPilot<span className="brand-ai">AI</span></Link>
+        <span className="analyze-nav-label">WORKSPACE ERROR</span>
+      </nav>
+      <section className="shell" style={{ paddingTop: 72 }}>
+        <div className="empty-profile">
+          <div className="eyebrow"><span className="pulse" /> Recoverable error</div>
+          <h2>Something interrupted this workspace.</h2>
+          <p>Your data has not been intentionally changed. Try the page again, or return to the dashboard and continue from there.</p>
+          <div className="profile-actions">
+            <button className="button primary" onClick={() => reset()}>Try again ↻</button>
+            <Link className="button secondary" href="/dashboard">Back to dashboard →</Link>
+          </div>
+        </div>
       </section>
     </main>
   );
