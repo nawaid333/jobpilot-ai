@@ -86,3 +86,31 @@ test("Applied status gets an appliedAt timestamp and preserves it", async () => 
   assert.equal(updated.response.status, 200, JSON.stringify(updated.body));
   assert.equal(updated.body.application.appliedAt, appliedAt, "Updating notes must not reset appliedAt");
 });
+
+test("duplicate job applications are idempotent", async () => {
+  const jobId = `duplicate-regression-${runId}`;
+  const payload = {
+    job: { id: jobId, title: "Duplicate Application QA", company: "JobPilot QA", location: "Remote" },
+    status: "Saved",
+  };
+
+  const first = await request("/api/applications", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify(payload),
+  });
+  assert.equal(first.response.status, 200, JSON.stringify(first.body));
+  assert.ok(first.body?.application?.id);
+
+  const second = await request("/api/applications", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify(payload),
+  });
+  assert.equal(second.response.status, 200, JSON.stringify(second.body));
+  assert.equal(second.body?.application?.id, first.body.application.id, "Duplicate submission must return the existing application");
+
+  const applications = await request("/api/applications", { headers: { cookie } });
+  assert.equal(applications.response.status, 200);
+  assert.equal(applications.body.applications.filter((item) => item.id === first.body.application.id).length, 1, "Duplicate submission must not create a second application");
+});
