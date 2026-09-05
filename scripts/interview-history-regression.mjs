@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 const baseUrl = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const prisma = new PrismaClient();
 const runId = randomUUID().replaceAll("-", "");
+const testIp = `10.254.${Number.parseInt(runId.slice(0, 2), 16) % 250}.${Number.parseInt(runId.slice(2, 4), 16) % 250}`;
 let userId;
 let cookie;
 let applicationId;
@@ -29,7 +30,7 @@ function sessionCookie(response) {
 }
 
 async function signup(prefix) {
-  const { response, body } = await request("/api/auth/signup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: `${prefix}-${runId}@example.test`, password: "JobPilotQA!123", name: "Interview QA" }) });
+  const { response, body } = await request("/api/auth/signup", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": testIp }, body: JSON.stringify({ email: `${prefix}-${runId}@example.test`, password: "JobPilotQA!123", name: "Interview QA" }) });
   assert.equal(response.status, 201, JSON.stringify(body));
   return { id: body.user.id, cookie: sessionCookie(response) };
 }
