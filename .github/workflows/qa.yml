@@ -5,29 +5,110 @@ on:
     branches: ["qa/security-e2e"]
   pull_request:
 
-# CI only needs to read repository contents; keep the token least-privileged.
 permissions:
   contents: read
 
 jobs:
   qa:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: jobpilot_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U ci -d jobpilot_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
       - name: Dependency security audit
-        run: npm audit --audit-level=high --omit=dev
+        run: npm audit --audit-level=high
+      - name: Generate Prisma client
+        run: npx prisma generate
       - name: TypeScript typecheck
-        run: npm run typecheck
+        run: npx tsc --noEmit
+      - name: Prepare database
+        run: npx prisma db push --skip-generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
       - name: Production build
         run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
+          OPENAI_API_KEY: ci-placeholder
+          GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
+          GOOGLE_CLIENT_ID: "ci-client-id.apps.googleusercontent.com"
+          GOOGLE_CLIENT_SECRET: "ci-client-secret"
+          GOOGLE_REDIRECT_URI: "https://127.0.0.1:3000/api/gmail/callback"
+          JOBPILOT_LEVER_COMPANIES: ""
+          STRIPE_SECRET_KEY: ""
+          STRIPE_PRO_PRICE_ID: ""
+          STRIPE_WEBHOOK_SECRET: ""
+          NEXT_PUBLIC_APP_URL: https://localhost:3000
+      - name: Start production server
+        run: |
+          DATABASE_URL=postgresql://ci:ci@localhost:5432/jobpilot_ci \
+          NEXT_PUBLIC_APP_URL=https://localhost:3000 \
+          OPENAI_API_KEY=ci-placeholder \
+          GMAIL_TOKEN_ENCRYPTION_KEY=00000000000000000000000000000000 \
+          GOOGLE_CLIENT_ID=ci-client-id.apps.googleusercontent.com \
+          GOOGLE_CLIENT_SECRET=ci-client-secret \
+          GOOGLE_REDIRECT_URI=https://127.0.0.1:3000/api/gmail/callback \
+          JOBPILOT_LEVER_COMPANIES= \
+          STRIPE_SECRET_KEY= \
+          STRIPE_PRO_PRICE_ID= \
+          STRIPE_WEBHOOK_SECRET= \
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/jobpilot-next.log 2>&1 &
+          echo $! > /tmp/jobpilot-next.pid
+          for i in $(seq 1 30); do
+            if curl -sS -o /tmp/jobpilot-health.json -w "%{http_code}" http://127.0.0.1:3000/api/health | grep -q '^200$'; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/jobpilot-next.log
+          cat /tmp/jobpilot-health.json || true
+          exit 1
       - name: Security smoke tests
         run: npm run test:security
+        env:
+          BASE_URL: http://127.0.0.1:3000
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
+          NEXT_PUBLIC_APP_URL: https://localhost:3000
+          OPENAI_API_KEY: ci-placeholder
+          GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
+          GOOGLE_CLIENT_ID: "ci-client-id.apps.googleusercontent.com"
+          GOOGLE_CLIENT_SECRET: "ci-client-secret"
+          GOOGLE_REDIRECT_URI: "https://127.0.0.1:3000/api/gmail/callback"
+          JOBPILOT_LEVER_COMPANIES: ""
+          STRIPE_SECRET_KEY: ""
+          STRIPE_PRO_PRICE_ID: ""
+          STRIPE_WEBHOOK_SECRET: ""
       - name: Application status regression
         run: npm run test:application-status
+        env:
+          BASE_URL: http://127.0.0.1:3000
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
+          NEXT_PUBLIC_APP_URL: https://localhost:3000
+          OPENAI_API_KEY: ci-placeholder
+          GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
+          GOOGLE_CLIENT_ID: ci-client-id.apps.googleusercontent.com
+          GOOGLE_CLIENT_SECRET: ci-client-secret
+          GOOGLE_REDIRECT_URI: https://127.0.0.1:3000/api/gmail/callback
+          JOBPILOT_LEVER_COMPANIES: ""
+          STRIPE_SECRET_KEY: ""
+          STRIPE_PRO_PRICE_ID: ""
+          STRIPE_WEBHOOK_SECRET: ""
