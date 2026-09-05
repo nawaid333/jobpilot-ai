@@ -2,14 +2,14 @@ name: JobPilot CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, qa/security-e2e]
   pull_request:
     branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -31,6 +31,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Dependency security audit
@@ -39,6 +40,8 @@ jobs:
         run: npx prisma generate
       - name: TypeScript validation
         run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
       - name: Prepare database
         run: npx prisma db push --skip-generate
         env:
@@ -72,7 +75,6 @@ jobs:
           STRIPE_PRO_PRICE_ID= \
           STRIPE_WEBHOOK_SECRET= \
           npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/jobpilot-next.log 2>&1 &
-          echo $! > /tmp/jobpilot-next.pid
           for i in $(seq 1 30); do
             if curl -sS -o /tmp/jobpilot-health.json -w "%{http_code}" http://127.0.0.1:3000/api/health | grep -q '^200$'; then exit 0; fi
             sleep 1
