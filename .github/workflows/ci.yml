@@ -81,3 +81,5 @@ jobs:
         run: npm run test:gmail-signal-approval
       - name: Gmail signal matching regression suite
         run: npm run test:gmail-signal-matching
+      - name: Agent action safety regression suite
+        run: npm run test:agent-action
