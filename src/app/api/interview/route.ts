@@ -26,11 +26,12 @@ export async function GET(req:Request){
   const url=new URL(req.url); const applicationId=url.searchParams.get("applicationId")?.trim()||""; if(!applicationId||applicationId.length>100)return NextResponse.json({error:"applicationId is required"},{status:400});
   const rawLimit=url.searchParams.get("limit"); const limit=rawLimit===null?50:Number(rawLimit); if(!Number.isInteger(limit)||limit<1||limit>50)return NextResponse.json({error:"limit must be an integer between 1 and 50"},{status:400});
   const application=await prisma.application.findFirst({where:{id:applicationId,userId:user.id},select:{id:true}}); if(!application)return NextResponse.json({error:"Application not found"},{status:404});
-  const sessions=await prisma.interviewSession.findMany({where:{applicationId:application.id},orderBy:{createdAt:"desc"},take:limit,select:{id:true,question:true,answer:true,feedback:true,mode:true,score:true,createdAt:true}});
-  const scored=sessions.map(s=>s.score).filter((score):score is number=>typeof score==="number"&&Number.isFinite(score));
-  const averageScore=scored.length?Math.round(scored.reduce((sum,score)=>sum+score,0)/scored.length):null;
-  const latestPracticeAt=sessions[0]?.createdAt||null;
-  return NextResponse.json({sessions,summary:{attempts:sessions.length,scoredAttempts:scored.length,averageScore,latestPracticeAt}});
+  const [sessions, aggregate] = await Promise.all([
+    prisma.interviewSession.findMany({where:{applicationId:application.id},orderBy:{createdAt:"desc"},take:limit,select:{id:true,question:true,answer:true,feedback:true,mode:true,score:true,createdAt:true}}),
+    prisma.interviewSession.aggregate({where:{applicationId:application.id},_count:{_all:true},_avg:{score:true},_max:{createdAt:true}})
+  ]);
+  const averageScore=aggregate._avg.score==null?null:Math.round(aggregate._avg.score);
+  return NextResponse.json({sessions,summary:{attempts:aggregate._count._all,scoredAttempts:aggregate._avg.score==null?0:await prisma.interviewSession.count({where:{applicationId:application.id,score:{not:null}}}),averageScore,latestPracticeAt:aggregate._max.createdAt||null}});
 }
 
 export async function POST(req:Request){
