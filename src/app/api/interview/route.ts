@@ -44,6 +44,29 @@ async function saveFeedback(applicationId: string, question: string, answer: str
   await prisma.interviewSession.create({ data: { applicationId, question, answer, feedback, mode, score: feedback.score } });
 }
 
+export async function GET(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const url = new URL(req.url);
+  const applicationId = url.searchParams.get("applicationId")?.trim() || "";
+  if (!applicationId || applicationId.length > 100) {
+    return NextResponse.json({ error: "applicationId is required" }, { status: 400 });
+  }
+
+  const application = await prisma.application.findFirst({ where: { id: applicationId, userId: user.id }, select: { id: true } });
+  if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
+
+  const sessions = await prisma.interviewSession.findMany({
+    where: { applicationId: application.id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: { id: true, question: true, answer: true, feedback: true, mode: true, score: true, createdAt: true }
+  });
+
+  return NextResponse.json({ sessions });
+}
+
 export async function POST(req: Request) {
   const user=await getCurrentUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const limit=rateLimit(`interview:${user.id}`,10,60_000); if(!limit.ok)return NextResponse.json({error:"Too many Interview Coach requests. Please try again shortly."},{status:429,headers:{"Retry-After":String(limit.retryAfterSeconds)}});
