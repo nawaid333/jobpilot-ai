@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     config: "unknown",
     ai: process.env.OPENAI_API_KEY ? "configured" : "fallback-mode",
     jobs: process.env.JOBPILOT_LEVER_COMPANIES ? "configured" : "not-configured",
-    payments: "disabled",
+    payments: process.env.JOBPILOT_PAYMENTS_ENABLED === "true" ? "enabled" : "disabled",
   };
 
   try {
@@ -39,5 +39,11 @@ export async function GET(request: Request) {
   }
 
   const ok = checks.database === "ok" && checks.config === "ok";
-  return NextResponse.json({ ok, checks, timestamp: new Date().toISOString() }, { status: ok ? 200 : 503 });
+  return NextResponse.json(
+    { ok, checks, timestamp: new Date().toISOString() },
+    {
+      status: ok ? 200 : 503,
+      headers: { "Cache-Control": "no-store" },
+    },
+  );
 }

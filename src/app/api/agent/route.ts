@@ -30,9 +30,18 @@ export async function GET() {
     }),
   ]);
 
+  // Index signals once so each application lookup is O(1), rather than
+  // scanning the full signal list for every application.
+  const latestSignalByApplication = new Map<string, (typeof signals)[number]>();
+  for (const signal of signals) {
+    if (signal.applicationId && !latestSignalByApplication.has(signal.applicationId)) {
+      latestSignalByApplication.set(signal.applicationId, signal);
+    }
+  }
+
   const actions: any[] = [];
   for (const app of applications) {
-    const latest = signals.find((s) => s.applicationId === app.id);
+    const latest = latestSignalByApplication.get(app.id);
     const age = daysSince(app.appliedAt || app.updatedAt);
 
     if (app.status === "Offer") {

@@ -9,6 +9,7 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
   const current = buckets.get(key);
   if (!current || current.resetAt <= now) {
     buckets.set(key, { count: 1, resetAt: now + windowMs });
+    if (buckets.size > 10_000) pruneRateLimitBuckets();
     return { ok: true, remaining: Math.max(0, limit - 1) };
   }
   if (current.count >= limit) return { ok: false, retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)) };
@@ -35,6 +36,6 @@ export function rateLimitResponse(result: RateLimitResult) {
   if (result.ok) return null;
   return new Response(JSON.stringify({ error: "Too many requests. Please try again shortly." }), {
     status: 429,
-    headers: { "Content-Type": "application/json", "Retry-After": String(result.retryAfterSeconds) },
+    headers: { "Content-Type": "application/json", "Retry-After": String(result.retryAfterSeconds), "Cache-Control": "no-store" },
   });
 }
