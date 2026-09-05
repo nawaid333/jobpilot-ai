@@ -10,6 +10,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
+      NEXT_PUBLIC_APP_URL: https://localhost:3000
     services:
       postgres:
         image: postgres:16
@@ -43,13 +46,10 @@ jobs:
         run: npm run lint
       - name: Prepare database
         run: npx prisma db push --skip-generate
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
       - name: Production build
         run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
           OPENAI_API_KEY: "ci-placeholder"
           GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
           GOOGLE_CLIENT_ID: "ci-client-id.apps.googleusercontent.com"
@@ -59,10 +59,9 @@ jobs:
           STRIPE_SECRET_KEY: ""
           STRIPE_PRO_PRICE_ID: ""
           STRIPE_WEBHOOK_SECRET: ""
-          NEXT_PUBLIC_APP_URL: https://localhost:3000
       - name: Start production server
         run: |
-          DATABASE_URL=postgresql://ci:ci@localhost:5432/jobpilot_ci NEXT_PUBLIC_APP_URL=https://localhost:3000 OPENAI_API_KEY=ci-placeholder GMAIL_TOKEN_ENCRYPTION_KEY=00000000000000000000000000000000 GOOGLE_CLIENT_ID=ci-client-id.apps.googleusercontent.com GOOGLE_CLIENT_SECRET=ci-client-secret GOOGLE_REDIRECT_URI=https://127.0.0.1:3000/api/gmail/callback JOBPILOT_LEVER_COMPANIES= STRIPE_SECRET_KEY= STRIPE_PRO_PRICE_ID= STRIPE_WEBHOOK_SECRET= npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/jobpilot-next.log 2>&1 &
+          OPENAI_API_KEY=ci-placeholder GMAIL_TOKEN_ENCRYPTION_KEY=00000000000000000000000000000000 GOOGLE_CLIENT_ID=ci-client-id.apps.googleusercontent.com GOOGLE_CLIENT_SECRET=ci-client-secret GOOGLE_REDIRECT_URI=https://127.0.0.1:3000/api/gmail/callback JOBPILOT_LEVER_COMPANIES= STRIPE_SECRET_KEY= STRIPE_PRO_PRICE_ID= STRIPE_WEBHOOK_SECRET= npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/jobpilot-next.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -sS -o /tmp/jobpilot-health.json -w "%{http_code}" http://127.0.0.1:3000/api/health | grep -q '^200$'; then exit 0; fi
             sleep 1
