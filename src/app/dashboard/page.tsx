@@ -3,16 +3,16 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-function nextAction(status:string){
- if(status==="Saved") return "Tailor application";
- if(status==="Preparing") return "Finish tailoring";
- if(status==="Applied") return "Practice interview";
- if(status==="Interview") return "Review signals";
+function nextAction(status: string) {
+ if(status === "Saved") return "Tailor application";
+ if(status === "Preparing") return "Finish tailoring";
+ if(status === "Applied") return "Practice interview";
+ if(status === "Interview") return "Review signals";
  return "View tracker";
 }
 const modules=[["Profile","/profile"],["Jobs","/jobs"],["Tracker","/tracker"],["Intelligence","/intelligence"],["Interview","/interview"],["Copilot","/copilot"],["Agent","/agent"],["Analytics","/analytics"]];
 export default async function DashboardPage(){
- const user=await getCurrentUser(); if(!user)redirect("/login");
+ const user=await getCurrentUser(); if(!user) redirect("/login");
  const followUpCutoff=new Date(Date.now()-7*24*60*60*1000);
  const [applications,profile,tracked,applied,interviews,offers,followUps]=await Promise.all([
   prisma.application.findMany({where:{userId:user.id},orderBy:{updatedAt:"desc"},include:{job:true},take:8}),
