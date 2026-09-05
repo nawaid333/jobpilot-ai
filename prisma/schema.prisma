@@ -99,10 +99,24 @@ model Application {
   job                Job                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
   tailoredApplication TailoredApplication?
   emailSignals       EmailSignal[]
+  interviewSessions  InterviewSession[]
   @@unique([userId, jobId])
   @@index([userId, status])
   @@index([userId, createdAt])
   @@index([userId, updatedAt])
+}
+
+model InterviewSession {
+  id            String      @id @default(cuid())
+  applicationId String
+  question      String
+  answer        String
+  feedback      Json
+  mode          String
+  score         Int?
+  createdAt     DateTime    @default(now())
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  @@index([applicationId, createdAt])
 }
 
 model TailoredApplication {
