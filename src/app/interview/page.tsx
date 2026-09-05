@@ -15,6 +15,7 @@ export default function InterviewPage() {
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingApps, setLoadingApps] = useState(true);
   const [mode, setMode] = useState<"ai" | "rules" | null>(null);
   const [remainingAi, setRemainingAi] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -25,20 +26,26 @@ export default function InterviewPage() {
     if (linkedApplicationId) setApplicationId(linkedApplicationId);
 
     fetch("/api/applications")
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error("Could not load your applications.");
+        return r.json();
+      })
       .then(data => {
         const items = Array.isArray(data) ? data : data.applications || [];
         const active = items.filter((a: Application) => !["Rejected", "Offer"].includes(a.status));
         setApplications(active);
-        if (linkedApplicationId && active.some((a: Application) => a.id === linkedApplicationId)) {
-          setApplicationId(linkedApplicationId);
-        } else if (linkedApplicationId) {
+        if (linkedApplicationId && !active.some((a: Application) => a.id === linkedApplicationId)) {
           setApplicationId("");
           setError("That application is no longer available for interview practice.");
         }
       })
-      .catch(() => setError("Could not load your applications."));
+      .catch(e => setError(e.message || "Could not load your applications."))
+      .finally(() => setLoadingApps(false));
   }, []);
+
+  function resetPractice() {
+    setQuestions([]); setFeedback(null); setIndex(0); setAnswer(""); setMode(null); setError("");
+  }
 
   async function start() {
     if (!applicationId) return;
@@ -47,8 +54,9 @@ export default function InterviewPage() {
       const r = await fetch("/api/interview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ applicationId }) });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Could not build interview prep.");
-      setQuestions(data.questions || []); setMode(data.mode); if (typeof data.remainingAi === "number") setRemainingAi(data.remainingAi);
-    } catch (e: any) { setError(e.message); }
+      if (!Array.isArray(data.questions) || data.questions.length === 0) throw new Error("No practice questions were generated. Try again.");
+      setQuestions(data.questions); setMode(data.mode); if (typeof data.remainingAi === "number") setRemainingAi(data.remainingAi);
+    } catch (e: any) { setError(e.message || "Could not build interview prep."); }
     finally { setLoading(false); }
   }
 
@@ -61,7 +69,7 @@ export default function InterviewPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Could not review answer.");
       setFeedback(data.feedback); setMode(data.mode); if (typeof data.remainingAi === "number") setRemainingAi(data.remainingAi);
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { setError(e.message || "Could not review answer."); }
     finally { setLoading(false); }
   }
 
@@ -79,28 +87,28 @@ export default function InterviewPage() {
       <div className="interview-grid">
         <aside className="interview-sidebar">
           <div className="kicker">TARGET APPLICATION</div>
-          <select value={applicationId} onChange={e => { setApplicationId(e.target.value); setQuestions([]); setFeedback(null); setMode(null); setRemainingAi(null); }}>
-            <option value="">Choose an application</option>
+          <select value={applicationId} disabled={loadingApps || loading} onChange={e => { setApplicationId(e.target.value); resetPractice(); }}>
+            <option value="">{loadingApps ? "Loading applications…" : "Choose an application"}</option>
             {applications.map(a => <option key={a.id} value={a.id}>{a.job.title} · {a.job.company}</option>)}
           </select>
           {app && <div className="interview-target"><strong>{app.job.title}</strong><span>{app.job.company} · {app.job.location}</span><small>{app.status}</small></div>}
-          <button className="button primary" disabled={!applicationId || loading} onClick={start}>{loading && !q ? "Building…" : "Build my prep →"}</button>
+          <button className="button primary" disabled={!applicationId || loading || loadingApps} onClick={start}>{loading && !q ? "Building…" : "Build my prep →"}</button>
           {remainingAi !== null && <div className="ai-usage"><b>{remainingAi}</b> AI practice credits remaining this month</div>}
           <p className="truth-note">JobPilot uses only saved application and profile facts. It does not predict the exact interview questions.</p>
         </aside>
 
         <section className="interview-main">
-          {!q ? <div className="interview-empty"><div className="kicker">PRACTICE MODE</div><h2>Choose a role to start.</h2><p>You'll get a focused question set, then answer one question at a time and receive evidence-based coaching.</p></div> : <>
+          {!q ? <div className="interview-empty"><div className="kicker">PRACTICE MODE</div><h2>{applications.length ? "Choose a role to start." : "No active applications yet."}</h2><p>{applications.length ? "You'll get a focused question set, then answer one question at a time and receive evidence-based coaching." : "Save a relevant job in the Tracker first, then return here to practice against it."}</p>{!applications.length && <Link className="button secondary" href="/jobs">Find a job →</Link>}</div> : <>
             {mode === "rules" && <div className="rules-banner"><strong>Evidence Rules mode</strong><span>AI is unavailable or your AI allowance is used up. You can still practice with the same evidence-first coaching flow.</span></div>}
             <div className="question-head"><div><span>QUESTION {index + 1} / {questions.length}</span><b>{q.type}</b></div><div className="progress"><i style={{ width: `${((index + 1) / questions.length) * 100}%` }}/></div></div>
             <div className="question-card"><h2>{q.question}</h2><p><strong>Why this matters:</strong> {q.why}</p></div>
             <textarea className="answer-box" value={answer} onChange={e => setAnswer(e.target.value)} placeholder="Write your answer as if you were speaking to the interviewer…" />
             <div className="answer-actions"><button className="button primary" disabled={!answer.trim() || loading} onClick={review}>{loading ? "Reviewing…" : mode === "rules" ? "Review answer →" : "Get AI feedback →"}</button>{feedback && index < questions.length - 1 && <button className="button secondary" onClick={next}>Next question →</button>}</div>
-            {feedback && <div className="feedback-card"><div className="feedback-top"><div><div className="kicker">COACH FEEDBACK · {mode === "ai" ? "AI" : "EVIDENCE RULES"}</div><h3>{feedback.verdict}</h3></div>{feedback.score != null && <strong>{feedback.score}<small>/100</small></strong>}</div><div className="feedback-cols"><div><b>WHAT WORKED</b><ul>{feedback.strengths?.map((x,i)=><li key={i}>{x}</li>)}</ul></div><div><b>IMPROVE</b><ul>{feedback.improvements?.map((x,i)=><li key={i}>{x}</li>)}</ul></div></div><div className="follow-question"><b>Coach follow-up</b><span>{feedback.followUp}</span></div>{complete&&<div className="interview-complete"><strong>Practice complete</strong><span>You finished this prep set for {app?.job.title || "your target role"}. Review your feedback above, then continue with your application.</span><div><Link className="button secondary" href="/tracker">Back to tracker ↗</Link><button className="button secondary" onClick={()=>{setQuestions([]);setFeedback(null);setAnswer("");setIndex(0)}}>Practice again</button></div></div>}</div>}
+            {feedback && <div className="feedback-card"><div className="feedback-top"><div><div className="kicker">COACH FEEDBACK · {mode === "ai" ? "AI" : "EVIDENCE RULES"}</div><h3>{feedback.verdict}</h3></div>{feedback.score != null && <strong>{feedback.score}<small>/100</small></strong>}</div><div className="feedback-cols"><div><b>WHAT WORKED</b><ul>{feedback.strengths?.map((x,i)=><li key={i}>{x}</li>)}</ul></div><div><b>IMPROVE</b><ul>{feedback.improvements?.map((x,i)=><li key={i}>{x}</li>)}</ul></div></div><div className="follow-question"><b>Coach follow-up</b><span>{feedback.followUp}</span></div>{complete&&<div className="interview-complete"><strong>Practice complete</strong><span>You finished this prep set for {app?.job.title || "your target role"}. Review your feedback above, then continue with your application.</span><div><Link className="button secondary" href="/tracker">Back to tracker ↗</Link><button className="button secondary" onClick={resetPractice}>Practice again</button></div></div>}</div>}
           </>}
         </section>
       </div>
-      {error && <div className="interview-error">{error}</div>}
+      {error && <div className="interview-error" role="alert">{error}<button className="button secondary" onClick={() => { setError(""); if (!applications.length) window.location.href="/jobs"; }}>Dismiss</button></div>}
       <div className="interview-trust"><span>✓ Evidence-based</span><span>✓ No invented experience</span><span>✓ No hiring guarantees</span><span>✓ Your answers stay in this session</span></div>
     </section></main>;
 }
