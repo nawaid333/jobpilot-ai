@@ -19,20 +19,25 @@ export async function POST(request: Request) {
   const payload = await request.text();
   const signature = request.headers.get("stripe-signature") || "";
   if (!verify(payload, signature, secret)) return NextResponse.json({ error: "Invalid signature." }, { status: 400 });
-  const event = JSON.parse(payload);
-  const object = event.data?.object;
-  const customerId = object?.customer;
-  if (!customerId) return NextResponse.json({ received: true });
 
+  let event: { type?: string; data?: { object?: Record<string, unknown> } };
+  try { event = JSON.parse(payload); } catch { return NextResponse.json({ error: "Invalid payload." }, { status: 400 }); }
+
+  const object = event.data?.object;
+  const customerId = typeof object?.customer === "string" ? object.customer : undefined;
+  if (!customerId) return NextResponse.json({ received: true });
   const subscription = await prisma.subscription.findFirst({ where: { providerCustomerId: customerId } });
   if (!subscription) return NextResponse.json({ received: true });
 
-  if (["checkout.session.completed", "customer.subscription.created", "customer.subscription.updated"].includes(event.type)) {
-    const active = ["active", "trialing"].includes(object.status || "");
-    await prisma.subscription.update({ where: { userId: subscription.userId }, data: { plan: active ? "pro" : "free", status: object.status || "active", provider: "stripe", providerCustomerId: customerId, providerSubscriptionId: object.id || subscription.providerSubscriptionId, currentPeriodEnd: object.current_period_end ? new Date(object.current_period_end * 1000) : subscription.currentPeriodEnd } });
-  }
-  if (event.type === "customer.subscription.deleted") {
-    await prisma.subscription.update({ where: { userId: subscription.userId }, data: { plan: "free", status: "canceled", currentPeriodEnd: object.current_period_end ? new Date(object.current_period_end * 1000) : subscription.currentPeriodEnd } });
+  if (["customer.subscription.created", "customer.subscription.updated"].includes(event.type || "")) {
+    const status = typeof object?.status === "string" ? object.status : subscription.status;
+    const active = ["active", "trialing"].includes(status);
+    await prisma.subscription.update({ where: { userId: subscription.userId }, data: { plan: active ? "pro" : "free", status, provider: "stripe", providerCustomerId: customerId, providerSubscriptionId: typeof object?.id === "string" ? object.id : subscription.providerSubscriptionId, currentPeriodEnd: typeof object?.current_period_end === "number" ? new Date(object.current_period_end * 1000) : subscription.currentPeriodEnd } });
+  } else if (event.type === "customer.subscription.deleted") {
+    await prisma.subscription.update({ where: { userId: subscription.userId }, data: { plan: "free", status: "canceled", currentPeriodEnd: typeof object.current_period_end === "number" ? new Date(object.current_period_end * 1000) : subscription.currentPeriodEnd } });
+  } else if (event.type === "checkout.session.completed") {
+    const subscriptionId = typeof object.subscription === "string" ? object.subscription : undefined;
+    if (subscriptionId) await prisma.subscription.update({ where: { userId: subscription.userId }, data: { provider: "stripe", providerCustomerId: customerId, providerSubscriptionId: subscriptionId } });
   }
   return NextResponse.json({ received: true });
 }
