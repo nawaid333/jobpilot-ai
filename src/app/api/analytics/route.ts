@@ -27,7 +27,8 @@ export async function GET() {
 
     for (const application of applications) {
       if (counts[application.status] !== undefined) counts[application.status]++;
-      if (application.emailSignals.some((signal) => SIGNAL_CATEGORIES.has(signal.category))) responseSignals++;
+      const isAppliedStage = ["Applied", "Interview", "Offer"].includes(application.status);
+      if (isAppliedStage && application.emailSignals.some((signal) => SIGNAL_CATEGORIES.has(signal.category))) responseSignals++;
 
       const row = companies.get(application.job.company) || { applications: 0, interviews: 0, offers: 0 };
       row.applications++;
