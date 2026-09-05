@@ -66,6 +66,11 @@ test("tailoring rejects unauthenticated requests", async () => {
   assert.equal(response.status, 401); assert.equal(body?.error, "Unauthorized");
 });
 
+test("Interview Coach rejects unauthenticated requests", async () => {
+  const { response, body } = await request("/api/interview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ applicationId: "does-not-matter" }) });
+  assert.equal(response.status, 401); assert.equal(body?.error, "Unauthorized");
+});
+
 test("security headers are present", async () => {
   const { response } = await request("/api/applications");
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
@@ -106,6 +111,12 @@ test("state-changing requests reject an unexpected origin", async () => {
 test("Gmail disconnect rejects an unexpected origin", async () => {
   const { response, body } = await request("/api/gmail/status", { method: "DELETE", headers: { origin: "https://attacker.example", cookie: cookieA } });
   assert.equal(response.status, 403); assert.equal(body?.error, "Invalid request origin.");
+});
+
+test("Interview Coach input limits reject oversized bodies", async () => {
+  const oversized = JSON.stringify({ applicationId: "x".repeat(101), answer: "x".repeat(32_000) });
+  const { response } = await request("/api/interview", { method: "POST", headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(oversized)), cookie: cookieA }, body: oversized });
+  assert.equal(response.status, 413);
 });
 
 test("expired sessions are rejected", async () => {
