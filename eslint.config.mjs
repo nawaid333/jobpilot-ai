@@ -3,7 +3,14 @@ import nextVitals from "eslint-config-next/core-web-vitals.js";
 import nextTs from "eslint-config-next/typescript.js";
 
 export default defineConfig([
-  nextVitals,
-  nextTs,
-  globalIgnores([".next/**", "node_modules/**", "coverage/**"]),
+  ...nextVitals,
+  ...nextTs,
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "node_modules/**",
+    "coverage/**",
+    "next-env.d.ts",
+  ]),
 ]);
