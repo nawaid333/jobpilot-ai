@@ -95,3 +95,18 @@ jobs:
           STRIPE_SECRET_KEY: ""
           STRIPE_PRO_PRICE_ID: ""
           STRIPE_WEBHOOK_SECRET: ""
+      - name: Application status regression suite
+        run: npm run test:application-status
+        env:
+          BASE_URL: http://127.0.0.1:3000
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/jobpilot_ci
+          NEXT_PUBLIC_APP_URL: https://localhost:3000
+          OPENAI_API_KEY: ci-placeholder
+          GMAIL_TOKEN_ENCRYPTION_KEY: "00000000000000000000000000000000"
+          GOOGLE_CLIENT_ID: "ci-client-id.apps.googleusercontent.com"
+          GOOGLE_CLIENT_SECRET: "ci-client-secret"
+          GOOGLE_REDIRECT_URI: "https://127.0.0.1:3000/api/gmail/callback"
+          JOBPILOT_LEVER_COMPANIES: ""
+          STRIPE_SECRET_KEY: ""
+          STRIPE_PRO_PRICE_ID: ""
+          STRIPE_WEBHOOK_SECRET: ""
