@@ -52,11 +52,23 @@ export async function GET() {
   if (offers > 0) insights.push(`${offers} offer${offers === 1 ? " is" : "s are"} in the pipeline. Review the offer details before making a decision.`);
   if (responseSignals.length && applied) insights.push(`${pct(responseSignals.length, applied)}% of your applied-stage applications have a meaningful recruiting signal recorded.`);
 
+  const now = Date.now();
+  const trend = Array.from({ length: 6 }, (_, i) => {
+    const end = now - (5 - i) * 7 * DAY;
+    const start = end - 7 * DAY;
+    const inWindow = applications.filter((a) => {
+      const t = new Date(a.createdAt).getTime();
+      return t >= start && t < end;
+    });
+    return { label: i === 5 ? "This week" : `${6 - i}w ago`, applications: inWindow.length, applied: inWindow.filter((a) => a.appliedAt || ["Applied", "Interview", "Offer", "Rejected"].includes(a.status)).length };
+  });
+
   return NextResponse.json({
     summary: { tracked, applied, interviews, offers, rejected, responseRate: pct(responseSignals.length, applied), interviewRate: pct(interviews, applied), offerRate: pct(offers, applied), rejectionRate: pct(rejected, applied) },
     funnel,
     aging,
     companies: Array.from(companies.entries()).map(([company, value]) => ({ company, ...value })).sort((a, b) => b.applications - a.applications).slice(0, 6),
     insights,
+    trend,
   });
 }
