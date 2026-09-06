@@ -1,21 +1,23 @@
+import assert from "node:assert/strict";
+import test from "node:test";
 import { actionKey, canCompleteAction, canDismissAction, isTerminal } from "./agent-actions";
 
-describe("agent action lifecycle", () => {
-  it("creates stable keys for the same application action", () => {
+test("agent action lifecycle", async (t) => {
+  await t.test("creates stable keys for the same application action", () => {
     const input = { applicationId: "app-1", signalId: null, type: "follow-up" };
-    expect(actionKey(input)).toBe(actionKey(input));
+    assert.equal(actionKey(input), actionKey(input));
   });
 
-  it("allows only pending actions to be completed or dismissed", () => {
-    expect(canCompleteAction("pending")).toBe(true);
-    expect(canDismissAction("pending")).toBe(true);
-    expect(canCompleteAction("completed")).toBe(false);
-    expect(canDismissAction("dismissed")).toBe(false);
+  await t.test("allows only pending actions to be completed or dismissed", () => {
+    assert.equal(canCompleteAction("pending"), true);
+    assert.equal(canDismissAction("pending"), true);
+    assert.equal(canCompleteAction("completed"), false);
+    assert.equal(canDismissAction("dismissed"), false);
   });
 
-  it("recognizes terminal states", () => {
-    expect(isTerminal("completed")).toBe(true);
-    expect(isTerminal("dismissed")).toBe(true);
-    expect(isTerminal("pending")).toBe(false);
+  await t.test("recognizes terminal states", () => {
+    assert.equal(isTerminal("completed"), true);
+    assert.equal(isTerminal("dismissed"), true);
+    assert.equal(isTerminal("pending"), false);
   });
 });
