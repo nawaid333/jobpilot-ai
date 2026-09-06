@@ -68,9 +68,10 @@ test("interview history validates limit and returns summary", async () => {
   const result = await request(`/api/interview?applicationId=${encodeURIComponent(applicationId)}&limit=2`, { headers: { cookie } });
   assert.equal(result.response.status, 200, JSON.stringify(result.body));
   assert.equal(result.body.sessions.length, 2);
-  assert.equal(result.body.summary.attempts, 2);
-  assert.equal(result.body.summary.scoredAttempts, 2);
-  assert.equal(result.body.summary.averageScore, 72);
+  // `limit` only controls the returned session list; the summary intentionally aggregates all history.
+  assert.equal(result.body.summary.attempts, 3);
+  assert.equal(result.body.summary.scoredAttempts, 3);
+  assert.equal(result.body.summary.averageScore, 71);
   assert.ok(result.body.summary.latestPracticeAt);
 });
 
