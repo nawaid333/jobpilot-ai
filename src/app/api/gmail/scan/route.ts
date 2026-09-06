@@ -5,6 +5,7 @@ import { decryptToken, gmailGet, refreshAccessToken } from "@/lib/gmail";
 import { classifyApplicationEmail } from "@/lib/application-intelligence";
 import { rankApplications } from "@/lib/application-matching";
 import { aiMatchApplicationEmail } from "@/lib/ai-application-matching";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 function decodeBase64Url(input:string){return Buffer.from(input.replace(/-/g,"+").replace(/_/g,"/"),"base64").toString("utf8")}
 function collectText(payload:any):string{if(!payload)return "";if(payload.mimeType==="text/plain"&&payload.body?.data)return decodeBase64Url(payload.body.data);return (payload.parts||[]).map((p:any)=>collectText(p)).join("\n").slice(0,12000)}
@@ -14,6 +15,8 @@ function safeDate(value:string){const date=value?new Date(value):null;return dat
 export async function POST(){
   const user=await getCurrentUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+  const limited=rateLimitResponse(rateLimit(`gmail-scan:${user.id}`,10,60_000));
+  if(limited)return limited;
   const connection=await prisma.gmailConnection.findUnique({where:{userId:user.id}});
   if(!connection)return NextResponse.json({error:"Gmail is not connected."},{status:400});
   try{
