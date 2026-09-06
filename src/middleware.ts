@@ -18,6 +18,7 @@ function expectedOrigins(request: NextRequest) {
 
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
+  const isApi = request.nextUrl.pathname.startsWith("/api/");
 
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
@@ -25,11 +26,17 @@ export function middleware(request: NextRequest) {
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
 
+  // API responses contain user/workspace data and should never be cached by
+  // browsers or intermediary caches unless an endpoint explicitly opts in.
+  if (isApi) {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  }
+
   if (process.env.NODE_ENV === "production") {
     response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
 
-  if (request.nextUrl.pathname.startsWith("/api/") && UNSAFE_METHODS.has(request.method)) {
+  if (isApi && UNSAFE_METHODS.has(request.method)) {
     const origin = request.headers.get("origin");
     if (origin && !expectedOrigins(request).has(origin)) {
       return NextResponse.json({ error: "Invalid request origin." }, { status: 403, headers: response.headers });

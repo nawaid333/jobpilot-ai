@@ -18,7 +18,8 @@ export async function PATCH(req:Request){
     const signal=await prisma.emailSignal.findFirst({where:{id:signalId,userId:user.id}});
     const app=await prisma.application.findFirst({where:{id:applicationId,userId:user.id},include:{job:true}});
     if(!signal||!app)return NextResponse.json({error:"Signal or application not found."},{status:404});
-    if(signal.applied)return NextResponse.json({error:"This signal was already applied."},{status:409});
+    if(signal.applicationId===app.id)return NextResponse.json({ok:true,signal,application:app,alreadyMatched:true});
+    if(signal.applied)return NextResponse.json({error:"This signal was already applied to another application."},{status:409});
     const updated=await prisma.emailSignal.update({where:{id:signal.id},data:{applicationId:app.id,jobId:app.jobId,ambiguous:false,matchMethod:"manual",matchedScore:1}});
     return NextResponse.json({ok:true,signal:updated,application:app});
   }catch{return NextResponse.json({error:"Could not match this email."},{status:400});}

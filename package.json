@@ -6,7 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:security": "node --test scripts/security-smoke.mjs",
+    "test:application-status": "node --test scripts/application-status-regression.mjs",
+    "test:interview-history": "node --test scripts/interview-history-regression.mjs",
+    "test:gmail-signal-approval": "node --test scripts/gmail-signal-approval-regression.mjs",
+    "test:gmail-signal-matching": "node --test scripts/gmail-signal-matching-regression.mjs",
+    "test:agent-action": "node --test scripts/agent-action-regression.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
@@ -17,13 +24,19 @@
     "react-dom": "19.1.1",
     "@prisma/client": "^6.15.0",
     "docx": "^9.5.1",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.0"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "typescript": "^5.8.3",
-    "prisma": "^6.15.0"
+    "prisma": "^6.15.0",
+    "eslint": "^9.35.0",
+    "eslint-config-next": "15.5.24"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1",
+    "postcss": "^8.5.23"
   }
 }

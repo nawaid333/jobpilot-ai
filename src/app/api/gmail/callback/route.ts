@@ -3,5 +3,25 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { exchangeCode, encryptToken, gmailGet } from "@/lib/gmail";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
-export async function GET(req:Request){const user=await getCurrentUser();if(!user)return NextResponse.redirect(new URL("/login",req.url));const url=new URL(req.url);const code=url.searchParams.get("code");const state=url.searchParams.get("state");const c=await cookies();const saved=c.get("jobpilot-gmail-state")?.value; c.delete("jobpilot-gmail-state");if(!code||!state||!saved||saved!==`${user.id}.${state}`)return NextResponse.redirect(new URL("/intelligence?gmail=error",req.url));try{const token=await exchangeCode(code);if(!token.refresh_token)return NextResponse.redirect(new URL("/intelligence?gmail=reauthorize",req.url));const profile=await gmailGet("/users/me/profile",token.access_token);await prisma.gmailConnection.upsert({where:{userId:user.id},create:{userId:user.id,email:profile.emailAddress,refreshToken:encryptToken(token.refresh_token),scope:token.scope||"https://www.googleapis.com/auth/gmail.readonly"},update:{email:profile.emailAddress,refreshToken:encryptToken(token.refresh_token),scope:token.scope||"https://www.googleapis.com/auth/gmail.readonly"}});return NextResponse.redirect(new URL("/intelligence?gmail=connected",req.url));}catch{return NextResponse.redirect(new URL("/intelligence?gmail=error",req.url));}}
+export async function GET(req:Request){
+  const user=await getCurrentUser();
+  if(!user)return NextResponse.redirect(new URL("/login",req.url));
+  const limited=rateLimitResponse(rateLimit(`gmail-callback:${user.id}`,10,60_000));
+  if(limited)return NextResponse.redirect(new URL("/intelligence?gmail=rate_limited",req.url));
+  const url=new URL(req.url);
+  const code=url.searchParams.get("code");
+  const state=url.searchParams.get("state");
+  const c=await cookies();
+  const saved=c.get("jobpilot-gmail-state")?.value;
+  c.delete("jobpilot-gmail-state");
+  if(!code||!state||!saved||state.length!==64||saved!==`${user.id}.${state}`)return NextResponse.redirect(new URL("/intelligence?gmail=error",req.url));
+  try{
+    const token=await exchangeCode(code);
+    if(!token.refresh_token)return NextResponse.redirect(new URL("/intelligence?gmail=reauthorize",req.url));
+    const profile=await gmailGet("/users/me/profile",token.access_token);
+    await prisma.gmailConnection.upsert({where:{userId:user.id},create:{userId:user.id,email:profile.emailAddress,refreshToken:encryptToken(token.refresh_token),scope:token.scope||"https://www.googleapis.com/auth/gmail.readonly"},update:{email:profile.emailAddress,refreshToken:encryptToken(token.refresh_token),scope:token.scope||"https://www.googleapis.com/auth/gmail.readonly"}});
+    return NextResponse.redirect(new URL("/intelligence?gmail=connected",req.url));
+  }catch{return NextResponse.redirect(new URL("/intelligence?gmail=error",req.url));}
+}

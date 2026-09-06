@@ -5,14 +5,19 @@ import { decryptToken, gmailGet, refreshAccessToken } from "@/lib/gmail";
 import { classifyApplicationEmail } from "@/lib/application-intelligence";
 import { rankApplications } from "@/lib/application-matching";
 import { aiMatchApplicationEmail } from "@/lib/ai-application-matching";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 function decodeBase64Url(input:string){return Buffer.from(input.replace(/-/g,"+").replace(/_/g,"/"),"base64").toString("utf8")}
 function collectText(payload:any):string{if(!payload)return "";if(payload.mimeType==="text/plain"&&payload.body?.data)return decodeBase64Url(payload.body.data);return (payload.parts||[]).map((p:any)=>collectText(p)).join("\n").slice(0,12000)}
 function header(payload:any,name:string){return payload?.headers?.find((h:any)=>h.name?.toLowerCase()===name.toLowerCase())?.value||""}
+function invalidOrigin(req:Request){const origin=req.headers.get("origin");if(!origin)return false;try{const expected=new URL(process.env.NEXT_PUBLIC_APP_URL||"http://localhost:3000").origin;return new URL(origin).origin!==expected}catch{return true}}
 
-export async function POST(){
+export async function POST(req:Request){
   const user=await getCurrentUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+  const limited=rateLimitResponse(rateLimit(`gmail-scan:write:${user.id}`,5,60_000));
+  if(limited)return limited;
+  if(invalidOrigin(req))return NextResponse.json({error:"Invalid request origin."},{status:403});
   const connection=await prisma.gmailConnection.findUnique({where:{userId:user.id}});
   if(!connection)return NextResponse.json({error:"Gmail is not connected."},{status:400});
   try{
@@ -74,6 +79,6 @@ export async function POST(){
       await prisma.emailSignal.create({data:{userId:user.id,gmailMessageId:item.id,threadId:message.threadId,sender,subject,receivedAt:received?new Date(received):null,category:signal.category,confidence:signal.confidence,suggestedStatus:signal.suggestedStatus,reason:explanation,applicationId,jobId,recruiterName,recruiterEmail,matchedScore,matchMethod,ambiguous:isAmbiguous}});
       signals++;scanned++;
     }
-    return NextResponse.json({ok:true,scanned,signals,matched,aiMatched,ambiguous});
+    return NextResponse.json({ok:true,scanned,signals,matched,aiMatched,ambiguous},{headers:{"Cache-Control":"private, no-store, max-age=0"}});
   }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Gmail scan failed."},{status:502})}
 }
