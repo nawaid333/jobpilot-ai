@@ -1,50 +1,29 @@
 import { NextResponse } from "next/server";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
-type LeverPosting = {
-  id: string;
-  text: string;
-  categories?: { location?: string; allLocations?: string[]; level?: string; commitment?: string; team?: string };
-  content?: { description?: string };
-  urls?: { show?: string; apply?: string };
-  workplaceType?: string;
-  salaryDescription?: string;
-};
+type JobRecord = { id: string; title: string; company: string; location: string; mode: string; level: string; commitment: string; team: string; description: string; salary: string; url: string; applyUrl: string; source: string; skills: string[] };
+type LeverPosting = { id: string; text: string; categories?: { location?: string; allLocations?: string[]; level?: string; commitment?: string; team?: string }; content?: { description?: string }; urls?: { show?: string; apply?: string }; workplaceType?: string; salaryDescription?: string };
+type GreenhouseJob = { id: number; title: string; location?: { name?: string }; content?: string; absolute_url?: string; departments?: { name?: string }[]; metadata?: { name?: string; value?: string }[] };
+type AshbyJob = { id: string; title: string; location?: string; descriptionHtml?: string; jobUrl?: string; applyUrl?: string; department?: string; team?: string; employmentType?: string; workplaceType?: string };
 
-function clientKey(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || request.headers.get("x-real-ip") || "anonymous";
-}
+function clientKey(request: Request) { const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(); return forwarded || request.headers.get("x-real-ip") || "anonymous"; }
+function cleanHtml(value: string) { return value.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim(); }
+function inferSkills(text: string) { const known = ["javascript", "typescript", "react", "next.js", "node.js", "python", "java", "sql", "aws", "azure", "gcp", "docker", "kubernetes", "figma", "excel", "power bi", "tableau", "salesforce", "snowflake", "machine learning", "ai", "product management", "project management"]; const lower = text.toLowerCase(); return known.filter(skill => lower.includes(skill)).slice(0, 8); }
+
+async function fetchLever(slug: string): Promise<JobRecord[]> { const response = await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`, { next: { revalidate: 900 } }); if (!response.ok) throw new Error(`Lever source ${slug} returned ${response.status}`); const postings = await response.json() as LeverPosting[]; return postings.slice(0, 500).map(job => ({ id: `lever:${slug}:${job.id}`, title: job.text, company: slug, location: job.categories?.location || job.categories?.allLocations?.join(", ") || "Not specified", mode: job.workplaceType || "Not specified", level: job.categories?.level || "Not specified", commitment: job.categories?.commitment || "", team: job.categories?.team || "", description: job.content?.description || "", salary: job.salaryDescription || "", url: job.urls?.show || job.urls?.apply || "", applyUrl: job.urls?.apply || job.urls?.show || "", source: "Lever", skills: inferSkills(`${job.text} ${job.content?.description || ""}`) })); }
+
+async function fetchGreenhouse(token: string): Promise<JobRecord[]> { const response = await fetch(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(token)}/jobs?content=true`, { next: { revalidate: 900 } }); if (!response.ok) throw new Error(`Greenhouse source ${token} returned ${response.status}`); const data = await response.json() as { jobs?: GreenhouseJob[] }; return (data.jobs || []).slice(0, 500).map(job => { const description = job.content || ""; const department = job.departments?.map(x => x.name).filter(Boolean).join(", ") || ""; return { id: `greenhouse:${token}:${job.id}`, title: job.title, company: token, location: job.location?.name || "Not specified", mode: "Not specified", level: "Not specified", commitment: "", team: department, description, salary: job.metadata?.find(x => /salary|compensation/i.test(x.name || ""))?.value || "", url: job.absolute_url || "", applyUrl: job.absolute_url || "", source: "Greenhouse", skills: inferSkills(`${job.title} ${description} ${department}`) }; }); }
+
+async function fetchAshby(board: string): Promise<JobRecord[]> { const response = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(board)}`, { next: { revalidate: 900 } }); if (!response.ok) throw new Error(`Ashby source ${board} returned ${response.status}`); const data = await response.json() as { jobs?: AshbyJob[] }; return (data.jobs || []).slice(0, 500).map(job => ({ id: `ashby:${board}:${job.id}`, title: job.title, company: board, location: job.location || "Not specified", mode: job.workplaceType || "Not specified", level: "Not specified", commitment: job.employmentType || "", team: [job.department, job.team].filter(Boolean).join(" · "), description: job.descriptionHtml || "", salary: "", url: job.jobUrl || job.applyUrl || "", applyUrl: job.applyUrl || job.jobUrl || "", source: "Ashby", skills: inferSkills(`${job.title} ${job.descriptionHtml || ""} ${job.department || ""} ${job.team || ""}`) })); }
 
 export async function GET(request: Request) {
-  const limited = rateLimit(`jobs-public:${clientKey(request)}`, 30, 60_000);
-  const rateResponse = rateLimitResponse(limited);
-  if (rateResponse) return rateResponse;
-
-  const companies = (process.env.JOBPILOT_LEVER_COMPANIES || "").split(",").map(x => x.trim()).filter(Boolean).slice(0, 20);
-  if (!companies.length) return NextResponse.json({ jobs: [], configured: false, message: "Configure JOBPILOT_LEVER_COMPANIES with public Lever company slugs." });
-
-  const results = await Promise.allSettled(companies.map(async (slug) => {
-    const response = await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`, { next: { revalidate: 900 } });
-    if (!response.ok) throw new Error(`Lever source ${slug} returned ${response.status}`);
-    const postings = await response.json() as LeverPosting[];
-    return postings.slice(0, 500).map(job => ({
-      id: `${slug}:${job.id}`,
-      title: job.text,
-      company: slug,
-      location: job.categories?.location || job.categories?.allLocations?.join(", ") || "Not specified",
-      mode: job.workplaceType || "Not specified",
-      level: job.categories?.level || "Not specified",
-      commitment: job.categories?.commitment || "",
-      team: job.categories?.team || "",
-      description: job.content?.description || "",
-      salary: job.salaryDescription || "",
-      url: job.urls?.show || job.urls?.apply || "",
-      applyUrl: job.urls?.apply || job.urls?.show || "",
-      source: "Lever",
-    }));
-  }));
-
+  const limited = rateLimit(`jobs-public:${clientKey(request)}`, 30, 60_000); const rateResponse = rateLimitResponse(limited); if (rateResponse) return rateResponse;
+  const lever = (process.env.JOBPILOT_LEVER_COMPANIES || "").split(",").map(x => x.trim()).filter(Boolean).slice(0, 20);
+  const greenhouse = (process.env.JOBPILOT_GREENHOUSE_COMPANIES || "").split(",").map(x => x.trim()).filter(Boolean).slice(0, 20);
+  const ashby = (process.env.JOBPILOT_ASHBY_BOARDS || "").split(",").map(x => x.trim()).filter(Boolean).slice(0, 20);
+  const sourceCount = lever.length + greenhouse.length + ashby.length;
+  if (!sourceCount) return NextResponse.json({ jobs: [], configured: false, sources: 0, message: "Configure public Lever, Greenhouse, or Ashby job-board slugs to activate live discovery." });
+  const results = await Promise.allSettled([...lever.map(fetchLever), ...greenhouse.map(fetchGreenhouse), ...ashby.map(fetchAshby)]);
   const jobs = results.flatMap(result => result.status === "fulfilled" ? result.value : []);
-  return NextResponse.json({ jobs: jobs.slice(0, 1000), configured: true, sources: companies.length, fetchedAt: new Date().toISOString() });
+  return NextResponse.json({ jobs: jobs.slice(0, 1500), configured: true, sources: sourceCount, sourceTypes: { Lever: lever.length, Greenhouse: greenhouse.length, Ashby: ashby.length }, fetchedAt: new Date().toISOString() });
 }
