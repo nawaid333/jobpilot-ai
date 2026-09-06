@@ -36,8 +36,8 @@ export default function AgentPage() {
       if (!agentRes.ok || !actionsRes.ok) throw new Error("Could not load the agent queue.");
       const agent = await agentRes.json();
       const persisted = await actionsRes.json();
-      const byKey = new Map((persisted.actions || []).map((a: any) => [keyFor(a), a]));
-      setData({ ...agent, actions: (agent.actions || []).map((a: any) => ({ ...a, persistentId: byKey.get(keyFor(a))?.id })) .filter((a: any) => a.persistentId) });
+      const byKey = new Map<string, any>((persisted.actions || []).map((a: any) => [keyFor(a), a]));
+      setData({ ...agent, actions: (agent.actions || []).map((a: any) => ({ ...a, persistentId: byKey.get(keyFor(a))?.id })).filter((a: any) => a.persistentId) });
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load the agent queue."); }
   }
 
