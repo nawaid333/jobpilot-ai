@@ -14,7 +14,17 @@ export type AgentAction = {
   updatedAt: Date;
 };
 
-export function actionKey(input: { applicationId?: string | null; signalId?: string | null; type: string }) {
+export type AgentActionInput = {
+  userId: string;
+  applicationId?: string | null;
+  signalId?: string | null;
+  type: string;
+  title: string;
+  reason: string;
+  priority: number;
+};
+
+export function actionKey(input: Pick<AgentActionInput, "applicationId" | "signalId" | "type">) {
   return `${input.type}:${input.applicationId || "none"}:${input.signalId || "none"}`;
 }
 
@@ -24,4 +34,8 @@ export function canCompleteAction(status: AgentActionStatus) {
 
 export function canDismissAction(status: AgentActionStatus) {
   return status === "pending";
+}
+
+export function isTerminal(status: AgentActionStatus) {
+  return status === "completed" || status === "dismissed";
 }
