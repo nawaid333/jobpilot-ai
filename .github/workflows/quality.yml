@@ -83,6 +83,9 @@ jobs:
             sleep 2
           done
 
+      - name: Strict production health gate
+        run: node scripts/ci-health-check.mjs
+
       - name: Critical route smoke test
         run: npm run smoke
 
