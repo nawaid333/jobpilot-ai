@@ -11,6 +11,9 @@ permissions:
 
 env:
   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/jobpilot_ci
+  NEXT_PUBLIC_APP_URL: https://localhost:3000
+  OPENAI_API_KEY: ci-placeholder-openai-key
+  GMAIL_TOKEN_ENCRYPTION_KEY: ci-placeholder-gmail-encryption-key
 
 jobs:
   quality:
