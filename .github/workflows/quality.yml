@@ -69,6 +69,9 @@ jobs:
       - name: API contract tests
         run: npm run test:contracts
 
+      - name: Application state tests
+        run: npm run test:application-state
+
       - name: Tailoring validation tests
         run: node --test tests/tailor-validation.test.js
 
