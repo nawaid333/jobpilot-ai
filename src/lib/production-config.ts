@@ -23,7 +23,9 @@ export function validateProductionConfig(env: NodeJS.ProcessEnv = process.env): 
 }
 
 export function assertProductionConfig(env: NodeJS.ProcessEnv = process.env) {
-  if (env.NODE_ENV !== "production") return;
+  // Instrumentation can be loaded during `next build`; fail-fast validation belongs
+  // to the running production server, not the build environment.
+  if (env.NODE_ENV !== "production" || env.NEXT_PHASE === "phase-production-build") return;
   const result = validateProductionConfig(env);
   if (!result.ok) {
     throw new Error(`Invalid production configuration. Missing: ${result.missing.join(", ") || "none"}; Invalid: ${result.invalid.join(", ") || "none"}`);
