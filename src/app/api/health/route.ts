@@ -11,6 +11,7 @@ function clientKey(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
   const limited = rateLimit(`health:${clientKey(request)}`, 30, 60_000);
   const rateResponse = rateLimitResponse(limited);
   if (rateResponse) return rateResponse;
@@ -39,5 +40,8 @@ export async function GET(request: Request) {
   }
 
   const ok = checks.database === "ok" && checks.config === "ok";
-  return NextResponse.json({ ok, checks, timestamp: new Date().toISOString() }, { status: ok ? 200 : 503 });
+  return NextResponse.json(
+    { ok, status: ok ? "ok" : "degraded", checks, latencyMs: Date.now() - startedAt, timestamp: new Date().toISOString() },
+    { status: ok ? 200 : 503 }
+  );
 }
