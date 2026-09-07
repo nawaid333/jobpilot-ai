@@ -3,127 +3,65 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
-type LeverPosting = {
-  id: string;
-  text: string;
-  categories?: { location?: string; allLocations?: string[]; level?: string; commitment?: string; team?: string };
-  content?: { description?: string };
-  urls?: { show?: string; apply?: string };
-  workplaceType?: string;
-  salaryDescription?: string;
-};
+type NormalizedJob = { id:string; title:string; company:string; location:string; mode:string; level:string; salary:string; url:string; description:string; skills:string[]; source:string };
 
-type ScoreResult = {
-  score: number;
-  reasons: string[];
-  matchedRoles: string[];
-  matchedSkills: string[];
-  breakdown: { role: number; skills: number; location: number; workMode: number; seniority: number };
-};
+type LeverPosting = { id:string; text:string; categories?:{location?:string;allLocations?:string[];level?:string}; content?:{description?:string}; urls?:{show?:string;apply?:string}; workplaceType?:string; salaryDescription?:string };
+type GreenhouseJob = { id:number; title:string; location?:{name?:string}; absolute_url?:string; content?:string; departments?:{name?:string}[]; metadata?:{name?:string;value?:string}[] };
 
-function tokens(value: string) {
-  return value.toLowerCase().split(/[^a-z0-9+#.-]+/).filter(x => x.length > 2);
+type ScoreResult = { score:number; reasons:string[]; matchedRoles:string[]; matchedSkills:string[]; breakdown:{role:number;skills:number;location:number;workMode:number;seniority:number} };
+
+function tokens(value:string){return value.toLowerCase().split(/[^a-z0-9+#.-]+/).filter(x=>x.length>2)}
+function jsonStrings(value:unknown){return Array.isArray(value)?value.filter((x):x is string=>typeof x==="string"&&x.trim().length>0):[]}
+function unique(values:string[]){return [...new Set(values)]}
+
+function score(job:NormalizedJob,profile:any,prefs:any):ScoreResult{
+ const text=[job.title,job.company,job.location,job.mode,job.level,job.description,...job.skills].join(" ").toLowerCase();
+ const roleEvidence=unique([...jsonStrings(profile?.targetRoles),prefs?.roles||""].flatMap(tokens));
+ const skillEvidence=unique([...jsonStrings(profile?.skills),prefs?.keywords||""].flatMap(tokens));
+ const roleHits=roleEvidence.filter(t=>text.includes(t)); const skillHits=skillEvidence.filter(t=>text.includes(t));
+ const role=Math.min(30,roleHits.length*6),skills=Math.min(25,skillHits.length*3);
+ const locations=tokens(String(prefs?.locations||"").replace(/[,;]/g," "));
+ const location=locations.length&&locations.some(x=>job.location.toLowerCase().includes(x))?10:0;
+ const workMode=prefs?.workMode&&prefs.workMode!=="Any"&&job.mode.toLowerCase()===String(prefs.workMode).toLowerCase()?8:0;
+ const seniority=prefs?.seniority&&prefs.seniority!=="Any"&&job.level.toLowerCase().includes(String(prefs.seniority).split(" ")[0].toLowerCase())?5:0;
+ const reasons:string[]=[];
+ if(roleHits.length)reasons.push(`Role fit: ${roleHits.slice(0,3).join(", ")}`);
+ if(skillHits.length)reasons.push(`Skills match: ${skillHits.slice(0,4).join(", ")}`);
+ if(location)reasons.push("Location matches your preference");
+ if(workMode)reasons.push(`Work mode matches: ${job.mode}`);
+ if(seniority)reasons.push(`Seniority matches: ${job.level}`);
+ if(!reasons.length)reasons.push("Limited profile evidence matched this listing");
+ return {score:Math.min(99,30+role+skills+location+workMode+seniority),reasons,matchedRoles:roleHits.slice(0,6),matchedSkills:skillHits.slice(0,8),breakdown:{role,skills,location,workMode,seniority}};
 }
 
-function jsonStrings(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+async function fetchLever(slug:string):Promise<NormalizedJob[]>{
+ const response=await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`,{next:{revalidate:900}});
+ if(!response.ok)throw new Error(`Lever source ${slug} returned ${response.status}`);
+ const postings=await response.json() as LeverPosting[];
+ return postings.map(job=>({id:`lever:${slug}:${job.id}`,title:job.text,company:slug,location:job.categories?.location||job.categories?.allLocations?.join(", ")||"Not specified",mode:job.workplaceType||"Not specified",level:job.categories?.level||"Not specified",salary:job.salaryDescription||"",url:job.urls?.show||job.urls?.apply||"",description:job.content?.description||"",skills:[],source:"Lever"}));
 }
 
-function unique(values: string[]) {
-  return [...new Set(values)];
+async function fetchGreenhouse(token:string):Promise<NormalizedJob[]>{
+ const response=await fetch(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(token)}/jobs?content=true`,{next:{revalidate:900}});
+ if(!response.ok)throw new Error(`Greenhouse source ${token} returned ${response.status}`);
+ const data=await response.json() as {jobs:GreenhouseJob[]};
+ return (data.jobs||[]).map(job=>({id:`greenhouse:${token}:${job.id}`,title:job.title,company:token,location:job.location?.name||"Not specified",mode:"Not specified",level:"Not specified",salary:"",url:job.absolute_url||"",description:job.content||"",skills:(job.departments||[]).map(x=>x.name||"").filter(Boolean),source:"Greenhouse"}));
 }
 
-function score(job: any, profile: any, prefs: any): ScoreResult {
-  const text = [job.title, job.company, job.location, job.mode, job.level, job.description, ...jsonStrings(job.skills)].join(" ").toLowerCase();
-  const roleEvidence = unique([...jsonStrings(profile?.targetRoles), prefs?.roles || ""].flatMap(tokens));
-  const skillEvidence = unique([...jsonStrings(profile?.skills), prefs?.keywords || ""].flatMap(tokens));
-  const roleHits = roleEvidence.filter(t => text.includes(t));
-  const skillHits = skillEvidence.filter(t => text.includes(t));
-
-  const role = Math.min(30, roleHits.length * 6);
-  const skills = Math.min(25, skillHits.length * 3);
-  const locations = tokens(String(prefs?.locations || "").replace(/[,;]/g, " "));
-  const location = locations.length && locations.some(x => job.location.toLowerCase().includes(x)) ? 10 : 0;
-  const workMode = prefs?.workMode && prefs.workMode !== "Any" && String(job.mode).toLowerCase() === String(prefs.workMode).toLowerCase() ? 8 : 0;
-  const seniority = prefs?.seniority && prefs.seniority !== "Any" && String(job.level).toLowerCase().includes(String(prefs.seniority).split(" ")[0].toLowerCase()) ? 5 : 0;
-
-  const reasons: string[] = [];
-  if (roleHits.length) reasons.push(`Role fit: ${roleHits.slice(0, 3).join(", ")}`);
-  if (skillHits.length) reasons.push(`Skills match: ${skillHits.slice(0, 4).join(", ")}`);
-  if (location) reasons.push("Location matches your preference");
-  if (workMode) reasons.push(`Work mode matches: ${job.mode}`);
-  if (seniority) reasons.push(`Seniority matches: ${job.level}`);
-  if (!reasons.length) reasons.push("Limited profile evidence matched this listing");
-
-  return {
-    score: Math.min(99, 30 + role + skills + location + workMode + seniority),
-    reasons,
-    matchedRoles: roleHits.slice(0, 6),
-    matchedSkills: skillHits.slice(0, 8),
-    breakdown: { role, skills, location, workMode, seniority },
-  };
+async function fetchLiveJobs(){
+ const lever=(process.env.JOBPILOT_LEVER_COMPANIES||"").split(",").map(x=>x.trim()).filter(Boolean).slice(0,20);
+ const greenhouse=(process.env.JOBPILOT_GREENHOUSE_BOARDS||"").split(",").map(x=>x.trim()).filter(Boolean).slice(0,20);
+ const jobs=await Promise.allSettled([...lever.map(fetchLever),...greenhouse.map(fetchGreenhouse)]);
+ return {jobs:jobs.flatMap(r=>r.status==="fulfilled"?r.value:[]),configured:lever.length+greenhouse.length>0,sourceCount:jobs.filter(r=>r.status==="fulfilled").length};
 }
 
-async function fetchLiveJobs() {
-  const companies = (process.env.JOBPILOT_LEVER_COMPANIES || "").split(",").map(x => x.trim()).filter(Boolean).slice(0, 20);
-  if (!companies.length) return { jobs: [], configured: false };
-  const results = await Promise.allSettled(companies.map(async slug => {
-    const response = await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`, { next: { revalidate: 900 } });
-    if (!response.ok) throw new Error(`Lever source ${slug} returned ${response.status}`);
-    const postings = await response.json() as LeverPosting[];
-    return postings.map(job => ({
-      id: `${slug}:${job.id}`,
-      title: job.text,
-      company: slug,
-      location: job.categories?.location || job.categories?.allLocations?.join(", ") || "Not specified",
-      mode: job.workplaceType || "Not specified",
-      level: job.categories?.level || "Not specified",
-      salary: job.salaryDescription || "",
-      url: job.urls?.show || job.urls?.apply || "",
-      description: job.content?.description || "",
-      skills: [] as string[],
-      source: "Lever",
-    }));
-  }));
-  return { jobs: results.flatMap(r => r.status === "fulfilled" ? r.value : []), configured: true };
-}
-
-export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const limited = rateLimit(`jobs-recommend:${user.id}`, 30, 60_000);
-  const response = rateLimitResponse(limited);
-  if (response) return response;
-
-  const [profile, preferences, applications, live] = await Promise.all([
-    prisma.careerProfile.findUnique({ where: { userId: user.id } }),
-    prisma.jobPreferences.findUnique({ where: { userId: user.id } }),
-    prisma.application.findMany({ where: { userId: user.id }, select: { jobId: true } }),
-    fetchLiveJobs(),
-  ]);
-  if (!profile) return NextResponse.json({ error: "Build your career profile first." }, { status: 400 });
-
-  if (live.jobs.length) await prisma.$transaction(live.jobs.map(job => prisma.job.upsert({
-    where: { id: job.id },
-    create: job,
-    update: { title: job.title, company: job.company, location: job.location, mode: job.mode, level: job.level, salary: job.salary, url: job.url, description: job.description, skills: job.skills },
-  })));
-
-  const saved = new Set(applications.map(a => a.jobId));
-  const recommendations = live.jobs
-    .filter(job => !saved.has(job.id))
-    .map(job => ({ job, result: score(job, profile, preferences) }))
-    .filter(x => x.result.score >= 55)
-    .sort((a, b) => b.result.score - a.result.score)
-    .slice(0, 20)
-    .map(x => ({ ...x.job, matchScore: x.result.score, matchReasons: x.result.reasons, matchedRoles: x.result.matchedRoles, matchedSkills: x.result.matchedSkills, scoreBreakdown: x.result.breakdown }));
-
-  return NextResponse.json({
-    recommendations,
-    generatedAt: new Date().toISOString(),
-    strategy: "live-lever-explainable-role-skill-preference-evidence",
-    configured: live.configured,
-    sourceCount: live.jobs.length,
-  });
+export async function GET(){
+ const user=await getCurrentUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const limited=rateLimit(`jobs-recommend:${user.id}`,30,60_000); const limitedResponse=rateLimitResponse(limited); if(limitedResponse)return limitedResponse;
+ const [profile,preferences,applications,live]=await Promise.all([prisma.careerProfile.findUnique({where:{userId:user.id}}),prisma.jobPreferences.findUnique({where:{userId:user.id}}),prisma.application.findMany({where:{userId:user.id},select:{jobId:true}}),fetchLiveJobs()]);
+ if(!profile)return NextResponse.json({error:"Build your career profile first."},{status:400});
+ if(live.jobs.length)await prisma.$transaction(live.jobs.map(job=>prisma.job.upsert({where:{id:job.id},create:job,update:{title:job.title,company:job.company,location:job.location,mode:job.mode,level:job.level,salary:job.salary,url:job.url,description:job.description,skills:job.skills,lastSeenAt:new Date()}})));
+ const saved=new Set(applications.map(a=>a.jobId));
+ const recommendations=live.jobs.filter(job=>!saved.has(job.id)).map(job=>({job,result:score(job,profile,preferences)})).filter(x=>x.result.score>=55).sort((a,b)=>b.result.score-a.result.score).slice(0,20).map(x=>({...x.job,matchScore:x.result.score,matchReasons:x.result.reasons,matchedRoles:x.result.matchedRoles,matchedSkills:x.result.matchedSkills,scoreBreakdown:x.result.breakdown}));
+ return NextResponse.json({recommendations,generatedAt:new Date().toISOString(),strategy:"multi-source-live-explainable-role-skill-preference-evidence",configured:live.configured,sourceCount:live.jobs.length,connectedSources:live.sourceCount});
 }
