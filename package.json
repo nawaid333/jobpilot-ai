@@ -12,6 +12,7 @@
     "smoke:api": "node scripts/api-smoke.mjs",
     "smoke:production": "node scripts/production-smoke.mjs",
     "test:contracts": "node --test tests/api-contracts.test.js",
+    "test:application-state": "node --test tests/application-state.test.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
