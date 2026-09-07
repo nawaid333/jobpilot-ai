@@ -9,12 +9,13 @@ on:
 permissions:
   contents: read
 
+env:
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/jobpilot_ci
+
 jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/jobpilot_ci
     services:
       postgres:
         image: postgres:16
@@ -58,14 +59,35 @@ jobs:
       - name: API contract tests
         run: npm run test:contracts
 
+      - name: Tailoring validation tests
+        run: node --test tests/tailor-validation.test.js
+
       - name: Production build
         run: npm run build
 
       - name: Start production server
         run: npm start > /tmp/jobpilot-next.log 2>&1 &
 
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/api/health > /tmp/health.json; then
+              cat /tmp/health.json
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Production server did not become ready"
+              cat /tmp/jobpilot-next.log
+              exit 1
+            fi
+            sleep 2
+          done
+
       - name: Critical route smoke test
         run: npm run smoke
+
+      - name: API authentication smoke test
+        run: npm run smoke:api
 
       - name: Upload server log on failure
         if: failure()
