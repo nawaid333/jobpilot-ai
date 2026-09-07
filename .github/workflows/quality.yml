@@ -57,3 +57,16 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Start production server
+        run: npm start > /tmp/jobpilot-next.log 2>&1 &
+
+      - name: Critical route smoke test
+        run: npm run smoke
+
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobpilot-next-server-log
+          path: /tmp/jobpilot-next.log
