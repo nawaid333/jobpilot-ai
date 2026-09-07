@@ -18,6 +18,16 @@ function bodyTooLarge(req: Request) {
   return length !== null && Number.isFinite(Number(length)) && Number(length) > MAX_BODY_BYTES;
 }
 
+function validStatus(value: unknown): value is (typeof ALLOWED)[number] {
+  return typeof value === "string" && (ALLOWED as readonly string[]).includes(value);
+}
+
+function canTransition(from: string, to: string) {
+  if (from === to) return true;
+  if (!(from in RANK) || !(to in RANK)) return false;
+  return RANK[to] >= RANK[from];
+}
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -48,13 +58,14 @@ export async function POST(req: Request) {
     const description = optionalStringField(rawJob.description, 20000, "Description") ?? null;
     const url = rawJob.url ? safeHttpUrl(rawJob.url, "Job URL") : null;
     const skills = rawJob.skills === undefined ? [] : stringArrayField(rawJob.skills, 100, 200, "Skills");
-    if (b.status && !ALLOWED.includes(b.status)) return NextResponse.json({ error: "Invalid status." }, { status: 400 });
+    if (b.status !== undefined && !validStatus(b.status)) return NextResponse.json({ error: "Invalid status." }, { status: 400 });
     const notes = b.notes === undefined ? "" : stringField(b.notes, 10000, "Notes");
     const job = await prisma.job.upsert({ where: { id }, create: { id, title, company, location, mode, level, source, salary, url, description, skills }, update: { title, company, location, mode, level, source, salary, url, description, skills } });
     const existing = await prisma.application.findUnique({ where: { userId_jobId: { userId: user.id, jobId: job.id } } });
-    const requested = b.status ? String(b.status) : "Saved";
-    const status = existing && RANK[existing.status] > RANK[requested] ? existing.status : requested;
-    const application = await prisma.application.upsert({ where: { userId_jobId: { userId: user.id, jobId: job.id } }, create: { userId: user.id, jobId: job.id, status, notes }, update: { status, notes: b.notes === undefined ? undefined : notes }, include: { job: true, tailoredApplication: true } });
+    const requested = b.status === undefined ? "Saved" : String(b.status);
+    if (existing && !canTransition(existing.status, requested)) return NextResponse.json({ error: `Cannot move application backward from ${existing.status} to ${requested}.` }, { status: 409 });
+    const status = existing ? requested : requested;
+    const application = await prisma.application.upsert({ where: { userId_jobId: { userId: user.id, jobId: job.id } }, create: { userId: user.id, jobId: job.id, status, notes }, update: { status, notes: b.notes === undefined ? undefined : notes, appliedAt: status === "Applied" && !existing?.appliedAt ? new Date() : undefined }, include: { job: true, tailoredApplication: true } });
     return NextResponse.json({ application });
   } catch { return NextResponse.json({ error: "Could not save application." }, { status: 400 }); }
 }
@@ -69,10 +80,11 @@ export async function PATCH(req: Request) {
     const b = await req.json();
     if (!b || typeof b !== "object") return NextResponse.json({ error: "Invalid request." }, { status: 400 });
     const id = stringField(b.id, 300, "Application id");
-    if (b.status && !ALLOWED.includes(b.status)) return NextResponse.json({ error: "Invalid status." }, { status: 400 });
+    if (b.status !== undefined && !validStatus(b.status)) return NextResponse.json({ error: "Invalid status." }, { status: 400 });
     const notes = b.notes === undefined ? undefined : stringField(b.notes, 10000, "Notes");
     const existing = await prisma.application.findFirst({ where: { id, userId: user.id } });
     if (!existing) return NextResponse.json({ error: "Application not found." }, { status: 404 });
+    if (b.status !== undefined && !canTransition(existing.status, String(b.status))) return NextResponse.json({ error: `Cannot move application backward from ${existing.status} to ${b.status}.` }, { status: 409 });
     const application = await prisma.application.update({ where: { id: existing.id }, data: { status: b.status || undefined, notes, appliedAt: b.status === "Applied" && !existing.appliedAt ? new Date() : undefined }, include: { job: true, tailoredApplication: true } });
     return NextResponse.json({ application });
   } catch { return NextResponse.json({ error: "Could not update application." }, { status: 400 }); }
