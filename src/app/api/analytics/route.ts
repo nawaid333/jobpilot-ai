@@ -15,11 +15,13 @@ export async function GET() {
 
   const count = (status: string) => applications.filter((a) => a.status === status).length;
   const tracked = applications.length;
-  const applied = count("Applied") + count("Interview") + count("Offer");
-  const interviews = count("Interview") + count("Offer");
+  // An application remains part of the applied cohort after it advances to Interview/Offer
+  // or closes as Rejected. Use appliedAt so a role rejected before submission is not counted.
+  const applied = applications.filter((a) => a.appliedAt !== null).length;
+  const interviews = applications.filter((a) => ["Interview", "Offer", "Rejected"].includes(a.status) && a.interviewCompletedAt !== null).length;
   const offers = count("Offer");
   const rejected = count("Rejected");
-  const responseSignals = applications.filter((a) => a.emailSignals.some((s) => ["interview", "assessment", "offer", "rejection"].includes(s.category)));
+  const responseSignals = applications.filter((a) => a.appliedAt !== null && a.emailSignals.some((s) => ["interview", "assessment", "offer", "rejection"].includes(s.category)));
   const completedActions = agentActions.filter((a) => a.status === "completed");
   const progressedByAgent = new Set(completedActions.map((a) => a.applicationId).filter(Boolean)).size;
   const pct = (n: number, d: number) => d ? Math.round((n / d) * 100) : 0;
@@ -34,7 +36,7 @@ export async function GET() {
   const aging = applications.filter((a) => !["Rejected", "Offer"].includes(a.status)).map((a) => ({ applicationId: a.id, title: a.job.title, company: a.job.company, status: a.status, days: Math.max(0, Math.floor((Date.now() - new Date(a.updatedAt).getTime()) / DAY)) })).sort((a, b) => b.days - a.days).slice(0, 6);
 
   const companies = new Map<string, { applications: number; interviews: number; offers: number }>();
-  for (const a of applications) { const row = companies.get(a.job.company) || { applications: 0, interviews: 0, offers: 0 }; row.applications++; if (["Interview", "Offer"].includes(a.status)) row.interviews++; if (a.status === "Offer") row.offers++; companies.set(a.job.company, row); }
+  for (const a of applications) { const row = companies.get(a.job.company) || { applications: 0, interviews: 0, offers: 0 }; row.applications++; if (a.interviewCompletedAt !== null) row.interviews++; if (a.status === "Offer") row.offers++; companies.set(a.job.company, row); }
 
   const actionBreakdown = new Map<string, number>();
   for (const action of completedActions) actionBreakdown.set(action.actionType, (actionBreakdown.get(action.actionType) || 0) + 1);
@@ -50,7 +52,7 @@ export async function GET() {
 
   return NextResponse.json({
     summary: { tracked, applied, interviews, offers, rejected, responseRate: pct(responseSignals.length, applied), interviewRate: pct(interviews, applied), offerRate: pct(offers, applied), rejectionRate: pct(rejected, applied) },
-    agent: { actionsCompleted: completedActions.length, applicationsProgressed: progressedByAgent, byAction: Array.from(actionBreakdown.entries()).map(([action, count]) => ({ action, count })).sort((a, b) => b.count - a.count) } ,
+    agent: { actionsCompleted: completedActions.length, applicationsProgressed: progressedByAgent, byAction: Array.from(actionBreakdown.entries()).map(([action, count]) => ({ action, count })).sort((a, b) => b.count - a.count) },
     funnel,
     aging,
     companies: Array.from(companies.entries()).map(([company, value]) => ({ company, ...value })).sort((a, b) => b.applications - a.applications).slice(0, 6),
