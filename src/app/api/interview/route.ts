@@ -21,10 +21,11 @@ function validQuestions(value: unknown) { if (!value || typeof value !== "object
 async function savePractice(applicationId:string,question:string,answer:string,feedback:unknown,mode:string,completed=false){
   return prisma.$transaction(async tx=>{
     await tx.interviewPractice.create({data:{applicationId,question,answer,feedback:feedback as any,mode}});
-    const application=await tx.application.findUnique({where:{id:applicationId},select:{interviewCompletedAt:true}});
+    const application=await tx.application.findUnique({where:{id:applicationId},select:{interviewCompletedAt:true,status:true}});
     if(completed&&!application?.interviewCompletedAt){
       const completedAt=new Date();
-      await tx.application.update({where:{id:applicationId},data:{interviewCompletedAt:completedAt,interviewOutcome:null}});
+      const safeStatus=["Saved","Preparing","Applied","Interview"].includes(application?.status||"")?"Interview":undefined;
+      await tx.application.update({where:{id:applicationId},data:{interviewCompletedAt:completedAt,interviewOutcome:null,...(safeStatus?{status:safeStatus}:{})}});
       return completedAt;
     }
     return application?.interviewCompletedAt||null;
