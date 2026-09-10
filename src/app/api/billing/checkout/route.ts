@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 function appUrl() {
   return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -25,7 +26,11 @@ export async function POST() {
   params.set("metadata[userId]", user.id);
   params.set("subscription_data[metadata][userId]", user.id);
 
-  const existing = user.subscription?.providerCustomerId;
+  const subscription = await prisma.subscription.findUnique({
+    where: { userId: user.id },
+    select: { providerCustomerId: true },
+  });
+  const existing = subscription?.providerCustomerId;
   if (existing) params.set("customer", existing);
   else params.set("customer_email", user.email);
 
