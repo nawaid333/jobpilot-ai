@@ -44,7 +44,13 @@ export async function POST(request: NextRequest) {
     else if (action === "offer") response=application.status==="Offer"||application.status==="Rejected"?{error:`Cannot reopen an offer action for a ${application.status} application.`,status:409}:{ok:true,next:"offer",redirect:`/application/${id}`,message:"Offer review opened for this application."};
     else response={error:"Unsupported agent action.",status:400};
 
-    if (response.ok && !(response.alreadyRecorded)) await record(user.id,application.id,action,"completed",{next:response.next||null,message:response.message||null});
+    if (response.ok && !(response.alreadyRecorded)) {
+      await record(user.id, application.id, action, "completed", {
+        next: response.next || null,
+        status: response.status || application.status,
+        message: response.message || null,
+      });
+    }
     return NextResponse.json(response,{status:response.status||200});
   } catch { return NextResponse.json({ error: "Could not execute agent action." }, { status: 400 }); }
 }
