@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const DAY = 86400000;
+const PROGRESSION_ACTIONS = new Set(["prepare", "mark-preparing", "mark-applied"]);
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -23,7 +24,9 @@ export async function GET() {
   const rejected = count("Rejected");
   const responseSignals = applications.filter((a) => a.appliedAt !== null && a.emailSignals.some((s) => ["interview", "assessment", "offer", "rejection"].includes(s.category)));
   const completedActions = agentActions.filter((a) => a.status === "completed");
-  const progressedByAgent = new Set(completedActions.map((a) => a.applicationId).filter(Boolean)).size;
+  // "Applications progressed" means the Agent actually performed a lifecycle-changing action,
+  // not merely opened preparation/follow-up/insight screens. Count each application once.
+  const progressedByAgent = new Set(completedActions.filter((a) => PROGRESSION_ACTIONS.has(a.actionType)).map((a) => a.applicationId).filter(Boolean)).size;
   const pct = (n: number, d: number) => d ? Math.round((n / d) * 100) : 0;
 
   const funnel = [
@@ -49,7 +52,7 @@ export async function GET() {
   if (interviews > 0) insights.push(`${interviews} application${interviews === 1 ? " has" : "s have"} reached interview stage. Prioritize preparation over adding low-fit applications.`);
   if (offers > 0) insights.push(`${offers} offer${offers === 1 ? " is" : "s are"} in the pipeline. Review the offer details before making a decision.`);
   if (responseSignals.length && applied) insights.push(`${pct(responseSignals.length, applied)}% of your applied-stage applications have a meaningful recruiting signal recorded.`);
-  if (completedActions.length) insights.push(`JobPilot recorded ${completedActions.length} completed Agent action${completedActions.length === 1 ? "" : "s"} across ${progressedByAgent} application${progressedByAgent === 1 ? "" : "s"}.`);
+  if (completedActions.length) insights.push(`JobPilot recorded ${completedActions.length} completed Agent action${completedActions.length === 1 ? "" : "s"} across ${progressedByAgent} application${progressedByAgent === 1 ? "" : "s"} with lifecycle-changing Agent activity.`);
 
   return NextResponse.json({
     summary: { tracked, applied, interviews, offers, rejected, responseRate: pct(responseSignals.length, applied), interviewRate: pct(interviews, applied), offerRate: pct(offers, applied), rejectionRate: pct(rejected, applied) },
