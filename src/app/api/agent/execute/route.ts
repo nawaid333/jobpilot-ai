@@ -38,10 +38,10 @@ export async function POST(request: NextRequest) {
       if (FINAL_STATUSES.has(application.status)) response={error:`Cannot mark a ${application.status} application as Applied.`,status:409};
       else if (application.status === "Applied") response={ok:true,status:application.status,alreadyRecorded:true,message:"Application is already marked as Applied."};
       else { const updated=await prisma.application.update({where:{id:application.id},data:{status:"Applied",appliedAt:application.appliedAt||new Date()}}); response={ok:true,status:updated.status,message:"Marked as Applied. JobPilot did not submit the application."}; }
-    } else if (action === "follow-up") response={ok:true,next:"follow-up",redirect:`/application/${id}`,message:"Open the application to review context and prepare the follow-up."};
-    else if (action === "interview") response={ok:true,next:"interview",redirect:`/interview?applicationId=${id}`,message:"Interview preparation opened with this application."};
-    else if (action === "assessment") response={ok:true,next:"assessment",redirect:`/intelligence?applicationId=${id}`,message:"Assessment context opened for this application."};
-    else if (action === "offer") response={ok:true,next:"offer",redirect:`/application/${id}`,message:"Offer review opened for this application."};
+    } else if (action === "follow-up") response=FINAL_STATUSES.has(application.status)?{error:`Cannot schedule Agent follow-up for a ${application.status} application.`,status:409}:{ok:true,next:"follow-up",redirect:`/application/${id}`,message:"Open the application to review context and prepare the follow-up."};
+    else if (action === "interview") response=application.status==="Offer"||application.status==="Rejected"?{error:`Cannot prepare an interview for a ${application.status} application.`,status:409}:{ok:true,next:"interview",redirect:`/interview?applicationId=${id}`,message:"Interview preparation opened with this application."};
+    else if (action === "assessment") response=application.status==="Offer"||application.status==="Rejected"?{error:`Cannot prepare an assessment for a ${application.status} application.`,status:409}:{ok:true,next:"assessment",redirect:`/intelligence?applicationId=${id}`,message:"Assessment context opened for this application."};
+    else if (action === "offer") response=application.status==="Offer"||application.status==="Rejected"?{error:`Cannot reopen an offer action for a ${application.status} application.`,status:409}:{ok:true,next:"offer",redirect:`/application/${id}`,message:"Offer review opened for this application."};
     else response={error:"Unsupported agent action.",status:400};
 
     if (response.ok && !(response.alreadyRecorded)) await record(user.id,application.id,action,"completed",{next:response.next||null,message:response.message||null});
