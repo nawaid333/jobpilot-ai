@@ -20,11 +20,15 @@ export default function InterviewPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get("applicationId") || params.get("id") || "";
     fetch("/api/applications")
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : data.applications || [];
-        setApplications(items.filter((a: Application) => !["Rejected", "Offer"].includes(a.status)));
+        const available = items.filter((a: Application) => !["Rejected", "Offer"].includes(a.status));
+        setApplications(available);
+        if (requested && available.some((a: Application) => a.id === requested)) setApplicationId(requested);
       })
       .catch(() => setError("Could not load your applications."));
   }, []);
@@ -78,7 +82,7 @@ export default function InterviewPage() {
         </aside>
 
         <section className="interview-main">
-          {!q ? <div className="interview-empty"><div className="kicker">PRACTICE MODE</div><h2>Choose a role to start.</h2><p>You'll get a focused question set, then answer one question at a time and receive evidence-based coaching.</p></div> : <>
+          {!q ? <div className="interview-empty"><div className="kicker">PRACTICE MODE</div><h2>{app ? `Prepare for ${app.job.title}.` : "Choose a role to start."}</h2><p>{app ? `${app.job.company} · ${app.job.location}. Your application context is already selected.` : "You'll get a focused question set, then answer one question at a time and receive evidence-based coaching."}</p></div> : <>
             {mode === "rules" && <div className="rules-banner"><strong>Evidence Rules mode</strong><span>AI is unavailable or your AI allowance is used up. You can still practice with the same evidence-first coaching flow.</span></div>}
             <div className="question-head"><div><span>QUESTION {index + 1} / {questions.length}</span><b>{q.type}</b></div><div className="progress"><i style={{ width: `${((index + 1) / questions.length) * 100}%` }}/></div></div>
             <div className="question-card"><h2>{q.question}</h2><p><strong>Why this matters:</strong> {q.why}</p></div>
