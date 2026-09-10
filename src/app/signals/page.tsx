@@ -6,7 +6,8 @@ type Job={id:string;title:string;company:string;location:string};
 type Application={id:string;status:string;job:Job};
 type Signal={id:string;subject:string;from:string;snippet?:string;receivedAt?:string;createdAt:string;suggestedStatus?:string;matchedScore?:number;matchMethod?:string;ambiguous:boolean;applied:boolean;application?:Application|null;job?:Job|null};
 const STATUS_RANK:Record<string,number>={Saved:0,Preparing:1,Applied:2,Interview:3,Offer:4,Rejected:4};
-function canMove(from:string,to:string){return from===to||(from in STATUS_RANK&&to in STATUS_RANK&&STATUS_RANK[to]>=STATUS_RANK[from]);}
+const TERMINAL=new Set(["Offer","Rejected"]);
+function canMove(from:string,to:string){return from===to||(from in STATUS_RANK&&to in STATUS_RANK&&!TERMINAL.has(from)&&STATUS_RANK[to]>=STATUS_RANK[from]);}
 
 export default function SignalsPage(){
  const[signals,setSignals]=useState<Signal[]>([]),[apps,setApps]=useState<Application[]>([]),[loaded,setLoaded]=useState(false),[error,setError]=useState(""),[busy,setBusy]=useState("");
