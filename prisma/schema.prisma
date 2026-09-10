@@ -97,6 +97,7 @@ model Application {
   job                Job                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
   tailoredApplication TailoredApplication?
   emailSignals       EmailSignal[]
+  interviewPractices InterviewPractice[]
   @@unique([userId, jobId])
   @@index([userId, status])
 }
@@ -113,6 +114,18 @@ model TailoredApplication {
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
   application         Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+model InterviewPractice {
+  id            String      @id @default(cuid())
+  applicationId String
+  question      String
+  answer        String
+  feedback      Json
+  mode          String      @default("rules")
+  createdAt     DateTime    @default(now())
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  @@index([applicationId, createdAt])
 }
 
 model GmailConnection {
