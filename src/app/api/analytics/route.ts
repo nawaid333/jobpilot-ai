@@ -31,6 +31,7 @@ export async function GET() {
     { label: "Applied", value: applied },
     { label: "Interview", value: interviews },
     { label: "Offer", value: offers },
+    { label: "Rejected", value: rejected },
   ];
 
   const aging = applications.filter((a) => !["Rejected", "Offer"].includes(a.status)).map((a) => ({ applicationId: a.id, title: a.job.title, company: a.job.company, status: a.status, days: Math.max(0, Math.floor((Date.now() - new Date(a.updatedAt).getTime()) / DAY)) })).sort((a, b) => b.days - a.days).slice(0, 6);
