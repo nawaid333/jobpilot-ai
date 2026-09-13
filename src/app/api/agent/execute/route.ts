@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { buildAgentIdempotencyKey } from "@/lib/agent-idempotency";
 
 const safeActions = new Set(["prepare", "mark-preparing", "mark-applied", "follow-up", "complete-follow-up", "snooze-follow-up", "interview", "assessment", "offer"]);
 const RANK: Record<string, number> = { Saved: 0, Preparing: 1, Applied: 2, Interview: 3, Offer: 4, Rejected: 4 };
@@ -10,15 +11,6 @@ const DEFAULT_FOLLOW_UP_DELAY_DAYS = 3;
 const FOLLOW_UP_OPTIONS = new Set([1, 3, 7, 14]);
 
 function nextFollowUpDate(from = new Date(), days = DEFAULT_FOLLOW_UP_DELAY_DAYS) { const due = new Date(from); due.setDate(due.getDate() + days); due.setHours(12, 0, 0, 0); return due; }
-
-function fallbackIdempotencyKey(action: string, applicationId: string, followUpDays: number, currentDueAt: Date | null) {
-  const day = new Date().toISOString().slice(0, 10);
-  const due = currentDueAt ? currentDueAt.toISOString() : "none";
-  if (action === "follow-up") return `agent:${action}:${applicationId}:${day}`;
-  if (action === "snooze-follow-up") return `agent:${action}:${applicationId}:${due}:${followUpDays}`;
-  if (action === "complete-follow-up") return `agent:${action}:${applicationId}:${due}`;
-  return `agent:${action}:${applicationId}:${day}`;
-}
 
 async function startAction(userId: string, applicationId: string, actionType: string, idempotencyKey: string) {
   try {
@@ -54,7 +46,7 @@ export async function POST(request: NextRequest) {
     if (!application) return NextResponse.json({ error: "Application not found." }, { status: 404 });
 
     const suppliedKey = request.headers.get("Idempotency-Key")?.trim();
-    const idempotencyKey = suppliedKey && suppliedKey.length <= 200 ? suppliedKey : fallbackIdempotencyKey(action, application.id, followUpDays, application.followUpDueAt);
+    const idempotencyKey = suppliedKey && suppliedKey.length <= 200 ? suppliedKey : buildAgentIdempotencyKey(action, application.id, followUpDays, application.followUpDueAt);
     const claim = await startAction(user.id, application.id, action, idempotencyKey);
     if (!claim.created) {
       if (claim.action.status === "processing") return NextResponse.json({ error: "This Agent action is already being processed. Refresh and try again if it does not complete." }, { status: 409 });
@@ -94,7 +86,7 @@ export async function POST(request: NextRequest) {
     if (response.ok) await finishAction(claimedId, { ...response, status: undefined });
     else await failAction(claimedId, response.error || "Agent action failed.");
     return NextResponse.json(response, { status: response.status || 200 });
-  } catch (error: any) {
+  } catch {
     if (claimedId) await failAction(claimedId, "Could not execute agent action.");
     return NextResponse.json({ error: "Could not execute agent action." }, { status: 400 });
   }
