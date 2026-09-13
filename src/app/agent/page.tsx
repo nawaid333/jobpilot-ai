@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { briefLabel, buildDailyBrief } from "@/lib/agent-daily-brief";
 
 const FOLLOW_UP_OPTIONS = [1, 3, 7, 14];
 
 export default function AgentPage() {
   const [data, setData] = useState<any>(null), [error,setError]=useState(""), [busy,setBusy]=useState(""), [message,setMessage]=useState(""), [followUpDays,setFollowUpDays]=useState(3);
+  const actionKeys = useRef(new Map<string, string>());
   async function load(){setError("");const res=await fetch("/api/agent",{cache:"no-store"});if(!res.ok){setError("Could not load the agent queue.");return;}setData(await res.json());}
-  async function execute(action:any){if(!action.applicationId)return;setBusy(action.id);setMessage("");setError("");const res=await fetch("/api/agent/execute",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:action.type,applicationId:action.applicationId,followUpDays})});const result=await res.json();setBusy("");if(!res.ok){setError(result.error||"Action failed.");return;}setMessage(result.message||"Action completed.");if(result.redirect&&action.type!=="complete-follow-up"&&action.type!=="snooze-follow-up"&&action.type!=="follow-up")window.location.href=result.redirect;else await load();}
+  async function execute(action:any){if(!action.applicationId)return;setBusy(action.id);setMessage("");setError("");const key=actionKeys.current.get(action.id)||crypto.randomUUID();actionKeys.current.set(action.id,key);try{const res=await fetch("/api/agent/execute",{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":key},body:JSON.stringify({action:action.type,applicationId:action.applicationId,followUpDays})});const result=await res.json();if(!res.ok){setError(result.error||"Action failed.");return;}setMessage(result.message||"Action completed.");if(result.redirect&&action.type!=="complete-follow-up"&&action.type!=="snooze-follow-up"&&action.type!=="follow-up")window.location.href=result.redirect;else await load();}finally{setBusy("");}}
   useEffect(()=>{load()},[]);
   const label=(type:string)=>({tailor:"Prepare","follow-up":"Schedule follow-up","complete-follow-up":"Mark follow-up done","snooze-follow-up":"Snooze follow-up",interview:"Start interview prep",assessment:"Open assessment",offer:"Review offer"}[type]||"Open");
   const urgency=(a:any)=>a.type==="follow-up"?(a.title.includes("Overdue")?"OVERDUE":a.title.includes("today")?"TODAY":"UPCOMING"):a.priority>=5?"HIGH PRIORITY":a.priority>=4?"HIGH":"NORMAL";
