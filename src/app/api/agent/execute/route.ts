@@ -9,14 +9,40 @@ const FINAL_STATUSES = new Set(["Interview", "Offer", "Rejected"]);
 const DEFAULT_FOLLOW_UP_DELAY_DAYS = 3;
 const FOLLOW_UP_OPTIONS = new Set([1, 3, 7, 14]);
 
-async function record(userId: string, applicationId: string, actionType: string, status: string, result: unknown) {
-  await prisma.agentAction.create({ data: { id: crypto.randomUUID(), userId, applicationId, actionType, status, result: result as any, completedAt: status === "completed" ? new Date() : null } });
-}
 function nextFollowUpDate(from = new Date(), days = DEFAULT_FOLLOW_UP_DELAY_DAYS) { const due = new Date(from); due.setDate(due.getDate() + days); due.setHours(12, 0, 0, 0); return due; }
+
+function fallbackIdempotencyKey(action: string, applicationId: string, followUpDays: number, currentDueAt: Date | null) {
+  const day = new Date().toISOString().slice(0, 10);
+  const due = currentDueAt ? currentDueAt.toISOString() : "none";
+  if (action === "follow-up") return `agent:${action}:${applicationId}:${day}`;
+  if (action === "snooze-follow-up") return `agent:${action}:${applicationId}:${due}:${followUpDays}`;
+  if (action === "complete-follow-up") return `agent:${action}:${applicationId}:${due}`;
+  return `agent:${action}:${applicationId}:${day}`;
+}
+
+async function startAction(userId: string, applicationId: string, actionType: string, idempotencyKey: string) {
+  try {
+    return { created: true, action: await prisma.agentAction.create({ data: { id: crypto.randomUUID(), userId, applicationId, actionType, status: "processing", idempotencyKey } }) };
+  } catch (error: any) {
+    if (error?.code !== "P2002") throw error;
+    const existing = await prisma.agentAction.findUnique({ where: { idempotencyKey } });
+    if (!existing) throw error;
+    return { created: false, action: existing };
+  }
+}
+
+async function finishAction(id: string, result: Record<string, unknown>) {
+  await prisma.agentAction.update({ where: { id }, data: { status: "completed", result: result as any, completedAt: new Date() } });
+}
+
+async function failAction(id: string, message: string) {
+  await prisma.agentAction.update({ where: { id }, data: { status: "failed", result: { error: message } as any } }).catch(() => undefined);
+}
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser(); if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const limited = rateLimit(`agent-execute:${user.id}`, 30, 60_000); const rateResponse = rateLimitResponse(limited); if (rateResponse)return rateResponse;
+  let claimedId: string | null = null;
   try {
     const body = await request.json();
     const action = typeof body?.action === "string" ? body.action : "";
@@ -26,6 +52,17 @@ export async function POST(request: NextRequest) {
     if (!applicationId || applicationId.length > 100 || !safeActions.has(action)) return NextResponse.json({ error: "Valid action and application are required." }, { status: 400 });
     const application = await prisma.application.findFirst({ where: { id: applicationId, userId: user.id }, include: { job: true, tailoredApplication: true } });
     if (!application) return NextResponse.json({ error: "Application not found." }, { status: 404 });
+
+    const suppliedKey = request.headers.get("Idempotency-Key")?.trim();
+    const idempotencyKey = suppliedKey && suppliedKey.length <= 200 ? suppliedKey : fallbackIdempotencyKey(action, application.id, followUpDays, application.followUpDueAt);
+    const claim = await startAction(user.id, application.id, action, idempotencyKey);
+    if (!claim.created) {
+      if (claim.action.status === "processing") return NextResponse.json({ error: "This Agent action is already being processed. Refresh and try again if it does not complete." }, { status: 409 });
+      if (claim.action.result && typeof claim.action.result === "object") return NextResponse.json(claim.action.result as any);
+      return NextResponse.json({ error: "This Agent action was already completed." }, { status: 200 });
+    }
+    claimedId = claim.action.id;
+
     const id = encodeURIComponent(application.id); let response: any;
     if (action === "prepare") {
       if (!application.tailoredApplication) response = { ok: false, next: "tailor", redirect: `/tailor?applicationId=${id}`, message: "Create the tailored package before preparing submission." };
@@ -53,7 +90,12 @@ export async function POST(request: NextRequest) {
     else if (action === "assessment") response = application.status === "Offer" || application.status === "Rejected" ? { error: `Cannot prepare an assessment for a ${application.status} application.`, status: 409 } : { ok: true, next: "assessment", redirect: `/intelligence?applicationId=${id}`, message: "Assessment context opened for this application." };
     else if (action === "offer") response = application.status === "Offer" || application.status === "Rejected" ? { error: `Cannot reopen an offer action for a ${application.status} application.`, status: 409 } : { ok: true, next: "offer", redirect: `/application/${id}`, message: "Offer review opened for this application." };
     else response = { error: "Unsupported agent action.", status: 400 };
-    if (response.ok && !response.alreadyRecorded) await record(user.id, application.id, action, "completed", { next: response.next || null, status: response.status || application.status, followUpDueAt: response.followUpDueAt || null, followUpDays: response.followUpDays || null, message: response.message || null });
+
+    if (response.ok) await finishAction(claimedId, { ...response, status: undefined });
+    else await failAction(claimedId, response.error || "Agent action failed.");
     return NextResponse.json(response, { status: response.status || 200 });
-  } catch { return NextResponse.json({ error: "Could not execute agent action." }, { status: 400 }); }
+  } catch (error: any) {
+    if (claimedId) await failAction(claimedId, "Could not execute agent action.");
+    return NextResponse.json({ error: "Could not execute agent action." }, { status: 400 });
+  }
 }
