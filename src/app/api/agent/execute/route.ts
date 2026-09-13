@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
-import { buildAgentIdempotencyKey } from "@/lib/agent-idempotency";
+import { buildAgentIdempotencyKey, scopeAgentIdempotencyKey } from "@/lib/agent-idempotency";
 
 const safeActions = new Set(["prepare", "mark-preparing", "mark-applied", "follow-up", "complete-follow-up", "snooze-follow-up", "interview", "assessment", "offer"]);
 const RANK: Record<string, number> = { Saved: 0, Preparing: 1, Applied: 2, Interview: 3, Offer: 4, Rejected: 4 };
@@ -46,7 +46,9 @@ export async function POST(request: NextRequest) {
     if (!application) return NextResponse.json({ error: "Application not found." }, { status: 404 });
 
     const suppliedKey = request.headers.get("Idempotency-Key")?.trim();
-    const idempotencyKey = suppliedKey && suppliedKey.length <= 200 ? suppliedKey : buildAgentIdempotencyKey(action, application.id, followUpDays, application.followUpDueAt);
+    const idempotencyKey = suppliedKey && suppliedKey.length <= 200
+      ? scopeAgentIdempotencyKey(user.id, application.id, action, suppliedKey)
+      : buildAgentIdempotencyKey(action, application.id, followUpDays, application.followUpDueAt);
     const claim = await startAction(user.id, application.id, action, idempotencyKey);
     if (!claim.created) {
       if (claim.action.status === "processing") return NextResponse.json({ error: "This Agent action is already being processed. Refresh and try again if it does not complete." }, { status: 409 });
