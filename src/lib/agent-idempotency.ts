@@ -12,3 +12,12 @@ export function buildAgentIdempotencyKey(
   if (action === "complete-follow-up") return `agent:${action}:${applicationId}:${due}`;
   return `agent:${action}:${applicationId}:${day}`;
 }
+
+export function scopeAgentIdempotencyKey(
+  userId: string,
+  applicationId: string,
+  action: string,
+  suppliedKey: string,
+): string {
+  return `agent:${userId}:${applicationId}:${action}:${suppliedKey}`;
+}
