@@ -11,6 +11,7 @@
     "smoke": "node scripts/smoke-test.mjs",
     "smoke:api": "node scripts/api-smoke.mjs",
     "smoke:production": "node scripts/production-smoke.mjs",
+    "smoke:mvp": "node scripts/mvp-smoke.mjs",
     "test:contracts": "node --test tests/api-contracts.test.js",
     "test:application-state": "node --test tests/application-state.test.js",
     "db:generate": "prisma generate",
@@ -28,7 +29,7 @@
   "devDependencies": {
     "@types/node": "^20.17.0",
     "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
+    "@types/react-dom": "^19.1.1",
     "typescript": "^5.8.3",
     "prisma": "^6.15.0",
     "eslint": "^9.0.0",
