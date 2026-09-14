@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getPlan, monthKey, type PlanKey } from "@/lib/plans";
 
@@ -26,7 +27,7 @@ export async function consumeAiCredit(userId: string) {
 
       const usage = current
         ? await tx.aiUsage.update({ where: { id: current.id }, data: { credits: { increment: 1 } } })
-        : await tx.aiUsage.create({ data: { userId, month, credits: 1 } });
+        : await tx.aiUsage.create({ data: { id: randomUUID(), userId, month, credits: 1 } });
 
       return { ok: true as const, credits: usage.credits, planKey };
     }, { isolationLevel: "Serializable" });
