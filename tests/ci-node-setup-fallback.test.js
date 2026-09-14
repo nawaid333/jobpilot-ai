@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const workflow = fs.readFileSync(".github/workflows/quality.yml", "utf8");
+const eslintConfig = fs.readFileSync("eslint.config.mjs", "utf8");
 
 test("quality workflow keeps Node setup non-blocking only with a strict runtime gate", () => {
   assert.match(workflow, /id: setup-node/);
@@ -21,4 +22,11 @@ test("quality workflow uses npm install because the repository has no lockfile",
   assert.match(workflow.slice(installIndex, installIndex + 150), /run: npm install --no-audit --no-fund/);
   assert.doesNotMatch(workflow, /cache:\s*npm/);
   assert.doesNotMatch(workflow, /run: npm ci/);
+});
+
+test("ESLint flat config uses explicit config-next module files", () => {
+  assert.match(eslintConfig, /from "eslint-config-next\/core-web-vitals\.js";/);
+  assert.match(eslintConfig, /from "eslint-config-next\/typescript\.js";/);
+  assert.doesNotMatch(eslintConfig, /eslint-config-next\/core-web-vitals"/);
+  assert.doesNotMatch(eslintConfig, /eslint-config-next\/typescript"/);
 });
