@@ -105,7 +105,7 @@ export async function POST(){
         if(applied)autoUpdated++;
       }
 
-      await prisma.emailSignal.create({data:{userId:user.id,gmailMessageId:item.id,threadId:message.threadId,sender,subject,receivedAt:received?new Date(received):null,category:signal.category,confidence:signal.confidence,suggestedStatus:signal.suggestedStatus,reason:explanation,applicationId,jobId,recruiterName,recruiterEmail,matchedScore,matchMethod,ambiguous:isAmbiguous,applied}});
+      await prisma.emailSignal.create({data:{id:crypto.randomUUID(),userId:user.id,gmailMessageId:item.id,threadId:message.threadId,sender,subject,receivedAt:received?new Date(received):null,category:signal.category,confidence:signal.confidence,suggestedStatus:signal.suggestedStatus,reason:explanation,applicationId,jobId,recruiterName,recruiterEmail,matchedScore,matchMethod,ambiguous:isAmbiguous,applied}});
       signals++;scanned++;
     }
     return NextResponse.json({ok:true,scanned,signals,matched,aiMatched,ambiguous,autoUpdated});
