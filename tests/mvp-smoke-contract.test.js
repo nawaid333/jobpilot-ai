@@ -27,15 +27,19 @@ const requiredProtectedApis = [
   "/api/interview",
 ];
 
+function routePattern(route) {
+  return new RegExp(`['\"]${route.replaceAll("/", "\\/")}['\"]`);
+}
+
 test("MVP smoke covers every critical UI surface", () => {
   for (const route of requiredUiRoutes) {
-    assert.match(smokeScript, new RegExp(`['\"]${route.replaceAll("/", "\\/")}['\"]`));
+    assert.match(smokeScript, routePattern(route));
   }
 });
 
 test("MVP smoke checks authentication boundaries without mutating application state", () => {
   for (const route of requiredProtectedApis) {
-    assert.match(smokeScript, new RegExp(`['\"]${route.replaceAll("/", "\\/")}['\"]`));
+    assert.match(smokeScript, routePattern(route));
   }
   assert.doesNotMatch(smokeScript, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i);
   assert.match(smokeScript, /\[401, 403, 405\]/);
