@@ -13,10 +13,12 @@ test("quality workflow keeps Node setup non-blocking only with a strict runtime 
   assert.match(workflow, /steps\.setup-node\.outcome == 'failure'/);
 });
 
-test("quality workflow still uses npm ci after the fallback gate", () => {
+test("quality workflow uses npm install because the repository has no lockfile", () => {
   const verifyIndex = workflow.indexOf("- name: Verify Node and npm");
   const installIndex = workflow.indexOf("- name: Install dependencies");
   assert.ok(verifyIndex >= 0);
   assert.ok(installIndex > verifyIndex);
-  assert.match(workflow.slice(installIndex, installIndex + 100), /run: npm ci/);
+  assert.match(workflow.slice(installIndex, installIndex + 150), /run: npm install --no-audit --no-fund/);
+  assert.doesNotMatch(workflow, /cache:\s*npm/);
+  assert.doesNotMatch(workflow, /run: npm ci/);
 });
