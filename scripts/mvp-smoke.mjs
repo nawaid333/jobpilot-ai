@@ -9,7 +9,6 @@ const appRoutes = [
   "/analyze",
   "/tailor",
   "/tracker",
-  "/application",
   "/interview",
   "/agent",
   "/dashboard",
@@ -19,7 +18,7 @@ const appRoutes = [
 ];
 const protectedApis = [
   "/api/applications",
-  "/api/agent/actions",
+  "/api/agent",
   "/api/gmail/scan",
   "/api/interview",
 ];
