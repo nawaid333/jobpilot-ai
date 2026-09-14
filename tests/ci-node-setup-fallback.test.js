@@ -24,9 +24,8 @@ test("quality workflow uses npm install because the repository has no lockfile",
   assert.doesNotMatch(workflow, /run: npm ci/);
 });
 
-test("ESLint flat config uses explicit config-next module files", () => {
-  assert.match(eslintConfig, /from "eslint-config-next\/core-web-vitals\.js";/);
-  assert.match(eslintConfig, /from "eslint-config-next\/typescript\.js";/);
-  assert.doesNotMatch(eslintConfig, /eslint-config-next\/core-web-vitals"/);
-  assert.doesNotMatch(eslintConfig, /eslint-config-next\/typescript"/);
+test("ESLint flat config uses FlatCompat for Next.js legacy presets", () => {
+  assert.match(eslintConfig, /import \{ FlatCompat \} from "@eslint\/eslintrc";/);
+  assert.match(eslintConfig, /compat\.extends\("next\/core-web-vitals", "next\/typescript"\)/);
+  assert.match(eslintConfig, /globalIgnores\(\["\.next\/\*\*", "node_modules\/\*\*", "coverage\/\*\*"\]\)/);
 });
