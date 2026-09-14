@@ -116,6 +116,9 @@ jobs:
       - name: API authentication smoke test
         run: npm run smoke:api
 
+      - name: Full MVP smoke validation
+        run: npm run smoke:mvp
+
       - name: Upload server log on failure
         if: failure()
         uses: actions/upload-artifact@v4
