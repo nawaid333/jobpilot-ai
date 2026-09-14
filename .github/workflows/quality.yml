@@ -45,7 +45,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - name: Verify Node and npm
         run: |
@@ -58,7 +57,7 @@ jobs:
         run: echo "setup-node could not provision Node 22; continuing only because the runner already provides a compatible Node runtime."
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Generate Prisma client
         run: npx prisma generate
