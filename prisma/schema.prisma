@@ -108,16 +108,17 @@ model Application {
 }
 
 model AgentAction {
-  id            String       @id
-  userId        String
-  applicationId String?
-  actionType    String
-  status        String       @default("completed")
-  result        Json?
-  createdAt     DateTime     @default(now())
-  completedAt   DateTime?
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  id             String       @id
+  userId         String
+  applicationId  String?
+  actionType     String
+  status         String       @default("completed")
+  result         Json?
+  idempotencyKey String?      @unique
+  createdAt      DateTime     @default(now())
+  completedAt    DateTime?
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application    Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   @@index([userId, createdAt])
   @@index([applicationId, createdAt])
 }
@@ -137,7 +138,7 @@ model TailoredApplication {
 }
 
 model InterviewPractice {
-  id            String      @id @default(cuid())
+  id            String      @id
   applicationId String
   question      String
   answer        String
@@ -161,7 +162,7 @@ model GmailConnection {
 }
 
 model EmailSignal {
-  id              String   @id @default(cuid())
+  id              String   @id
   userId          String
   jobId           String?
   applicationId   String?
@@ -190,7 +191,7 @@ model EmailSignal {
 }
 
 model Subscription {
-  id                String   @id @default(cuid())
+  id                String   @id
   userId             String   @unique
   plan               String   @default("free")
   status             String   @default("active")
@@ -204,7 +205,7 @@ model Subscription {
 }
 
 model AiUsage {
-  id        String   @id @default(cuid())
+  id        String   @id
   userId    String
   month     String
   credits   Int      @default(0)
