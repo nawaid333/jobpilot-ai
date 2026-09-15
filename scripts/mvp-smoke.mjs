@@ -30,8 +30,15 @@ const server = spawn(process.platform === "win32" ? "npx.cmd" : "npx", ["next", 
 });
 
 let output = "";
+let stopping = false;
 server.stdout.on("data", chunk => { output += chunk.toString(); });
 server.stderr.on("data", chunk => { output += chunk.toString(); });
+server.on("error", error => {
+  if (!stopping) {
+    console.error(`MVP smoke server failed to spawn: ${error.message}`);
+    process.exitCode = 1;
+  }
+});
 
 async function request(path) {
   return fetch(`${base}${path}`, {
@@ -62,6 +69,19 @@ function assertSecurityHeaders(response, path) {
       throw new Error(`${path} missing ${name}`);
     }
   }
+}
+
+async function stopServer() {
+  stopping = true;
+  if (server.exitCode !== null || server.signalCode !== null) return;
+  server.kill("SIGTERM");
+  await Promise.race([
+    new Promise(resolve => server.once("exit", resolve)),
+    new Promise(resolve => setTimeout(() => {
+      if (server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
+      resolve();
+    }, 3000)),
+  ]);
 }
 
 try {
@@ -104,5 +124,5 @@ try {
   console.error(output.slice(-4000));
   process.exitCode = 1;
 } finally {
-  server.kill("SIGTERM");
+  await stopServer();
 }
