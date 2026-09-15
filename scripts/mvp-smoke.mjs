@@ -9,6 +9,7 @@ const appRoutes = [
   "/analyze",
   "/tailor",
   "/tracker",
+  "/application",
   "/interview",
   "/agent",
   "/dashboard",
