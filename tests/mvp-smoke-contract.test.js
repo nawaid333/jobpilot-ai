@@ -28,8 +28,9 @@ const requiredProtectedApis = [
 ];
 
 function assertRoutePresent(route) {
+  const routeLiteral = JSON.stringify(route);
   assert.ok(
-    smokeScript.includes(`"${route}"`) || smokeScript.includes(`'${route}'`) || smokeScript.includes(`\`${route}\``),
+    smokeScript.includes(routeLiteral) || smokeScript.includes(`'${route}'`) || smokeScript.includes(`\`${route}\``),
     `MVP smoke script must reference ${route}`,
   );
 }
