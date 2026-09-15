@@ -29,7 +29,7 @@ const requiredProtectedApis = [
 
 function routePattern(route) {
   const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`[\\\"']${escaped}[\\\"']`);
+  return new RegExp(`(?:[\\\"']|\\` )${escaped}(?:[\\\"']|\\`)`);
 }
 
 test("MVP smoke covers every critical UI surface", () => {
