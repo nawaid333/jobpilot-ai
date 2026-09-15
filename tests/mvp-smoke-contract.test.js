@@ -44,3 +44,10 @@ test("MVP smoke checks authentication boundaries without mutating application st
   assert.doesNotMatch(smokeScript, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i);
   assert.match(smokeScript, /\[401, 403, 405\]/);
 });
+
+test("MVP smoke always cleans up its child server", () => {
+  assert.match(smokeScript, /async function stopServer\(\)/);
+  assert.match(smokeScript, /server\.kill\("SIGTERM"\)/);
+  assert.match(smokeScript, /server\.kill\("SIGKILL"\)/);
+  assert.match(smokeScript, /finally\s*\{\s*await stopServer\(\);\s*\}/s);
+});
