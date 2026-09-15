@@ -51,3 +51,15 @@ test("MVP smoke always cleans up its child server", () => {
   assert.match(smokeScript, /server\.kill\("SIGKILL"\)/);
   assert.match(smokeScript, /finally\s*\{\s*await stopServer\(\);\s*\}/s);
 });
+
+test("MVP smoke route contracts are unique and ordered", () => {
+  for (const routes of [requiredUiRoutes, requiredProtectedApis]) {
+    for (const route of routes) {
+      assert.equal(
+        smokeScript.split(`  ${JSON.stringify(route)},`).length - 1,
+        1,
+        `MVP smoke route ${route} must appear exactly once`,
+      );
+    }
+  }
+});
