@@ -90,7 +90,7 @@ try {
   if (
     healthBody.status !== "ok" ||
     healthBody.checks?.database !== "ok" ||
-    healthBody.checks?.configuration !== "ok"
+    healthBody.checks?.config !== "ok"
   ) {
     throw new Error(`Health check is not healthy: ${JSON.stringify(healthBody)}`);
   }
