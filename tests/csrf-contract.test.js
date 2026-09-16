@@ -15,7 +15,7 @@ test("CSRF policy includes local development origins", () => {
 test("CSRF policy normalizes configured origins", () => {
   assert.match(csrf, /NEXT_PUBLIC_APP_URL/);
   assert.match(csrf, /\.trim\(\)/);
-  assert.match(csrf, /replace\(\/\\\/$\//);
+  assert.ok(csrf.includes('replace(/\\/$/, "")'));
 });
 
 test("CSRF policy rejects missing origins and recognizes only state-changing methods", () => {
