@@ -45,6 +45,12 @@ test("MVP smoke checks authentication boundaries without mutating application st
   assert.match(smokeScript, /\[401, 403, 405\]/);
 });
 
+test("MVP smoke uses the live health response field names", () => {
+  assert.match(smokeScript, /healthBody\.checks\?\.database\s*!==\s*["']ok["']/);
+  assert.match(smokeScript, /healthBody\.checks\?\.config\s*!==\s*["']ok["']/);
+  assert.doesNotMatch(smokeScript, /healthBody\.checks\?\.configuration\s*!==\s*["']ok["']/);
+});
+
 test("MVP smoke always cleans up its child server", () => {
   assert.match(smokeScript, /async function stopServer\(\)/);
   assert.match(smokeScript, /server\.kill\("SIGTERM"\)/);
