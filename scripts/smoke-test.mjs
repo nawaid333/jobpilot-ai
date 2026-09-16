@@ -9,8 +9,15 @@ const server = spawn(process.platform === "win32" ? "npx.cmd" : "npx", ["next", 
 });
 
 let output = "";
+let stopping = false;
 server.stdout.on("data", chunk => { output += chunk.toString(); });
 server.stderr.on("data", chunk => { output += chunk.toString(); });
+server.on("error", error => {
+  if (!stopping) {
+    console.error(`Smoke server failed to spawn: ${error.message}`);
+    process.exitCode = 1;
+  }
+});
 
 async function request(path) {
   return fetch(`${base}${path}`, { redirect: "manual", signal: AbortSignal.timeout(5000) });
@@ -21,9 +28,8 @@ async function waitForServer() {
     try {
       const response = await request("/api/health");
       if (response.status === 200) return response;
-    } catch {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+    } catch {}
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
   throw new Error(`Server did not start.\n${output.slice(-4000)}`);
 }
@@ -59,5 +65,6 @@ try {
   console.error(output.slice(-4000));
   process.exitCode = 1;
 } finally {
-  server.kill("SIGTERM");
+  stopping = true;
+  if (server.exitCode === null && server.signalCode === null) server.kill("SIGTERM");
 }
