@@ -34,6 +34,15 @@ test("snoozed actions stay hidden only until their expiry", () => {
   assert.equal(isHidden("a", state, new Date("2026-09-18T12:00:00Z")), false);
 });
 
+test("invalid snooze timestamps do not hide actions", () => {
+  assert.equal(isHidden("a", { dismissed: [], snoozedUntil: { a: "not-a-date" } }), false);
+});
+
+test("snoozing an action clears its dismissed state", () => {
+  const state = snooze({ dismissed: ["a"], snoozedUntil: {} }, "a", new Date("2026-09-17T12:00:00Z"));
+  assert.deepEqual(state, { dismissed: [], snoozedUntil: { a: "2026-09-17T12:00:00.000Z" } });
+});
+
 test("dismissing an action clears its snooze and deduplicates IDs", () => {
   const state = dismiss({ dismissed: ["a"], snoozedUntil: { a: "2026-09-17T12:00:00Z" } }, "a");
   assert.deepEqual(state, { dismissed: ["a"], snoozedUntil: {} });
