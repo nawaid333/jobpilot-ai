@@ -15,6 +15,12 @@ The Agent Daily Brief turns the existing prioritized Agent action queue into a c
 
 The brief only recommends and surfaces existing Agent actions. Buttons execute the same existing user-controlled Agent actions. JobPilot does not automatically submit applications or send recruiter emails.
 
+Users can dismiss a brief item or snooze it for 24 hours. These preferences are stored in the browser's local storage, so they persist across refreshes on the same browser profile. The full Action Queue remains visible and is not modified by brief preferences.
+
+## Privacy and limitations
+
+Brief dismiss and snooze preferences are client-side convenience settings. They are not yet synchronized across devices or browsers, and clearing browser storage resets them. No application or recruiting data is written when a user dismisses or snoozes a brief item.
+
 ## Next evolution
 
-Future work can add explicit daily completion metrics and persistent dismiss/snooze state without changing the selection contract above.
+Future work can add explicit daily completion metrics and account-level synchronization without changing the selection contract above.
