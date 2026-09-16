@@ -26,7 +26,7 @@ test("Agent history exposes application context without raw action results", () 
 });
 
 test("Agent history keeps the safety boundary explicit", () => {
-  assert.match(route, /does not represent automatic application submission or recruiter email sending/);
+  assert.match(route, /never represents automatic application submission or recruiter email sending/);
   assert.match(page, /No automatic application submission/);
   assert.match(page, /No automatic recruiter email sending/);
 });
