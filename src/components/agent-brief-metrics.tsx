@@ -6,11 +6,23 @@ type AgentBriefMetricsProps = {
 
 export function AgentBriefMetrics({ metrics }: AgentBriefMetricsProps) {
   return (
-    <div className="trust-points" aria-label="Daily Brief status summary">
-      <span>Visible: {metrics.visible}</span>
-      <span>Dismissed: {metrics.dismissed}</span>
-      <span>Snoozed: {metrics.snoozed}</span>
-      <span>Total: {metrics.total}</span>
-    </div>
+    <dl className="trust-points" aria-label="Daily Brief status summary">
+      <div>
+        <dt>Visible</dt>
+        <dd>{metrics.visible}</dd>
+      </div>
+      <div>
+        <dt>Dismissed</dt>
+        <dd>{metrics.dismissed}</dd>
+      </div>
+      <div>
+        <dt>Snoozed</dt>
+        <dd>{metrics.snoozed}</dd>
+      </div>
+      <div>
+        <dt>Total</dt>
+        <dd>{metrics.total}</dd>
+      </div>
+    </dl>
   );
 }
