@@ -34,6 +34,13 @@ test("snoozed actions stay hidden only until their expiry", () => {
   assert.equal(isHidden("a", state, new Date("2026-09-18T12:00:00Z")), false);
 });
 
+test("snooze expiry is inclusive of the expiry instant", () => {
+  const expiry = new Date("2026-09-17T12:00:00Z");
+  const state = snooze({ dismissed: [], snoozedUntil: {} }, "a", expiry);
+  assert.equal(isHidden("a", state, new Date(expiry.getTime() - 1)), true);
+  assert.equal(isHidden("a", state, expiry), false);
+});
+
 test("invalid snooze timestamps do not hide actions", () => {
   assert.equal(isHidden("a", { dismissed: [], snoozedUntil: { a: "not-a-date" } }), false);
 });
