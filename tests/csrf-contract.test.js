@@ -25,3 +25,14 @@ test("CSRF policy rejects missing origins and recognizes only state-changing met
   assert.match(csrf, /PATCH/);
   assert.match(csrf, /DELETE/);
 });
+
+test("CSRF mutation method allowlist does not include read-only methods", () => {
+  const methodList = csrf.match(/\[([^\]]+)\]\.includes\(request\.method\.toUpperCase\(\)\)/)?.[1] ?? "";
+  assert.match(methodList, /POST/);
+  assert.match(methodList, /PUT/);
+  assert.match(methodList, /PATCH/);
+  assert.match(methodList, /DELETE/);
+  assert.doesNotMatch(methodList, /GET/);
+  assert.doesNotMatch(methodList, /HEAD/);
+  assert.doesNotMatch(methodList, /OPTIONS/);
+});
