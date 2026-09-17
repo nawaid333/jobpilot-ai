@@ -9,6 +9,7 @@ import {
   DEFAULT_AGENT_BRIEF_PREFERENCES,
   dismissAgentBriefAction,
   isAgentBriefHidden,
+  normalizeAgentBriefPreferences,
   readAgentBriefPreferences,
   snoozeAgentBriefAction,
   type AgentBriefPreferenceState,
@@ -23,9 +24,27 @@ export default function AgentPage() {
   const actionKeys = useRef(new Map<string, string>());
 
   async function load() { setError(""); const res = await fetch("/api/agent", { cache: "no-store" }); if (!res.ok) { setError("Could not load the agent queue."); return; } setData(await res.json()); }
-  function saveBriefPreferences(next: AgentBriefPreferenceState) { setBriefPreferences(next); window.localStorage.setItem(BRIEF_PREFERENCES_KEY, JSON.stringify(next)); }
+  async function syncBriefPreferences(next: AgentBriefPreferenceState) {
+    try {
+      const res = await fetch("/api/agent/brief-preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+      if (!res.ok) throw new Error("Preference sync failed");
+    } catch { setMessage("Saved on this browser. We’ll retry account sync on your next change."); }
+  }
+  function saveBriefPreferences(next: AgentBriefPreferenceState) { const normalized = normalizeAgentBriefPreferences(next); setBriefPreferences(normalized); window.localStorage.setItem(BRIEF_PREFERENCES_KEY, JSON.stringify(normalized)); void syncBriefPreferences(normalized); }
   function dismissBriefAction(actionId: string) { saveBriefPreferences(dismissAgentBriefAction(briefPreferences, actionId)); }
   function snoozeBriefAction(actionId: string) { const until = new Date(Date.now() + 24 * 60 * 60 * 1000); saveBriefPreferences(snoozeAgentBriefAction(briefPreferences, actionId, until)); }
+  async function loadBriefPreferences() {
+    const local = readAgentBriefPreferences(window.localStorage.getItem(BRIEF_PREFERENCES_KEY));
+    try {
+      const res = await fetch("/api/agent/brief-preferences", { cache: "no-store" });
+      if (!res.ok) throw new Error("Preference load failed");
+      const remote = normalizeAgentBriefPreferences(await res.json());
+      const merged = normalizeAgentBriefPreferences({ dismissed: [...remote.dismissed, ...local.dismissed], snoozedUntil: { ...remote.snoozedUntil, ...local.snoozedUntil } });
+      setBriefPreferences(merged);
+      window.localStorage.setItem(BRIEF_PREFERENCES_KEY, JSON.stringify(merged));
+      if (JSON.stringify(merged) !== JSON.stringify(remote)) void syncBriefPreferences(merged);
+    } catch { setBriefPreferences(local); }
+  }
   async function execute(action: any, actionType = action.type) {
     if (!action.applicationId) return;
     const operationKey = `${action.id}:${actionType}`; setBusy(operationKey); setMessage(""); setError("");
@@ -37,7 +56,7 @@ export default function AgentPage() {
       if (result.redirect && actionType !== "complete-follow-up" && actionType !== "snooze-follow-up" && actionType !== "follow-up") window.location.href = result.redirect; else await load();
     } finally { setBusy(""); }
   }
-  useEffect(() => { load(); setBriefPreferences(readAgentBriefPreferences(window.localStorage.getItem(BRIEF_PREFERENCES_KEY))); }, []);
+  useEffect(() => { load(); void loadBriefPreferences(); }, []);
   const label = (type: string) => ({ tailor: "Prepare", "follow-up": "Schedule follow-up", "complete-follow-up": "Mark follow-up done", "snooze-follow-up": "Snooze follow-up", interview: "Start interview prep", assessment: "Open assessment", offer: "Review offer" }[type] || "Open");
   const urgency = (a: any) => a.type === "follow-up" ? (a.title.includes("Overdue") ? "OVERDUE" : a.title.includes("today") ? "TODAY" : "UPCOMING") : a.priority >= 5 ? "HIGH PRIORITY" : a.priority >= 4 ? "HIGH" : "NORMAL";
   const button = (action: any, type = action.type, secondary = false) => <button className={secondary ? "secondary-button" : "primary-button"} disabled={busy === `${action.id}:${type}`} onClick={() => execute(action, type)}>{busy === `${action.id}:${type}` ? (type === "follow-up" ? "Scheduling…" : type === "complete-follow-up" ? "Completing…" : type === "snooze-follow-up" ? "Snoozing…" : "Opening…") : label(type)}</button>;
