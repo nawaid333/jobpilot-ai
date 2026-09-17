@@ -6,6 +6,7 @@ const publicRoutes = ["/", "/jobs", "/tailor", "/tracker"];
 const server = spawn(process.platform === "win32" ? "npx.cmd" : "npx", ["next", "start", "-p", port], {
   env: { ...process.env, PORT: port },
   stdio: "pipe",
+  detached: process.platform !== "win32",
 });
 
 let output = "";
@@ -32,6 +33,31 @@ async function waitForServer() {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   throw new Error(`Server did not start.\n${output.slice(-4000)}`);
+}
+
+async function stopServer() {
+  stopping = true;
+  if (server.exitCode !== null || server.signalCode !== null) return;
+
+  if (process.platform === "win32") {
+    server.kill("SIGTERM");
+    return;
+  }
+
+  try {
+    process.kill(-server.pid, "SIGTERM");
+  } catch {}
+
+  await Promise.race([
+    new Promise(resolve => server.once("exit", resolve)),
+    new Promise(resolve => setTimeout(resolve, 3000)),
+  ]);
+
+  if (server.exitCode === null && server.signalCode === null) {
+    try {
+      process.kill(-server.pid, "SIGKILL");
+    } catch {}
+  }
 }
 
 try {
@@ -65,6 +91,5 @@ try {
   console.error(output.slice(-4000));
   process.exitCode = 1;
 } finally {
-  stopping = true;
-  if (server.exitCode === null && server.signalCode === null) server.kill("SIGTERM");
+  await stopServer();
 }
