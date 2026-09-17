@@ -1,11 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
-const { fileURLToPath } = require("node:url");
-const { dirname, resolve } = require("node:path");
+const { join } = require("node:path");
 
-const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const tailorRoute = readFileSync(resolve(projectRoot, "src/app/api/tailor/route.ts"), "utf8");
+const projectRoot = join(__dirname, "..");
+const tailorRoute = readFileSync(join(projectRoot, "src/app/api/tailor/route.ts"), "utf8");
 const allowed = new Set(["apply", "consider", "skip"]);
 
 function isValidPackage(value) {
