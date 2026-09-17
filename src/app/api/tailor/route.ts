@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { consumeAiCredit } from "@/lib/entitlements";
@@ -103,7 +104,7 @@ Job: ${JSON.stringify(application.job)}`;
 
     const saved = await prisma.tailoredApplication.upsert({
       where: { applicationId: application.id },
-      create: { applicationId: application.id, tailoredSummary: result.tailoredSummary, resumeEdits: result.resumeEdits, coverLetter: result.coverLetter, missingRequirements: result.missingRequirements, recommendation: result.applicationRecommendation },
+      create: { id: randomUUID(), applicationId: application.id, tailoredSummary: result.tailoredSummary, resumeEdits: result.resumeEdits, coverLetter: result.coverLetter, missingRequirements: result.missingRequirements, recommendation: result.applicationRecommendation },
       update: { tailoredSummary: result.tailoredSummary, resumeEdits: result.resumeEdits, coverLetter: result.coverLetter, missingRequirements: result.missingRequirements, recommendation: result.applicationRecommendation },
     });
     const updatedApplication = application.status === "Saved" ? await prisma.application.update({ where: { id: application.id }, data: { status: "Preparing" } }) : application;
