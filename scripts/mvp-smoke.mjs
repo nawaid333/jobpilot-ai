@@ -20,6 +20,7 @@ const appRoutes = [
 const protectedApis = [
   "/api/applications",
   "/api/agent",
+  "/api/agent/history",
   "/api/gmail/scan",
   "/api/interview",
 ];
