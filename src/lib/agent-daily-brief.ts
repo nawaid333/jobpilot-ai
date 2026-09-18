@@ -7,9 +7,21 @@ export type AgentBriefAction = {
   dueAt?: string | Date | null;
 };
 
+function dueTime(value: AgentBriefAction["dueAt"]): number {
+  if (!value) return Infinity;
+
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : Infinity;
+}
+
 export function buildDailyBrief<T extends AgentBriefAction>(actions: T[], limit = 3): T[] {
   return [...actions]
-    .sort((a, b) => b.priority - a.priority || ((a.dueAt ? new Date(a.dueAt).getTime() : Infinity) - (b.dueAt ? new Date(b.dueAt).getTime() : Infinity)))
+    .sort(
+      (a, b) =>
+        b.priority - a.priority ||
+        dueTime(a.dueAt) - dueTime(b.dueAt) ||
+        a.id.localeCompare(b.id),
+    )
     .slice(0, Math.max(0, limit));
 }
 

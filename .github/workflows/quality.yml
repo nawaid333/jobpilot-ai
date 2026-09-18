@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -111,13 +110,13 @@ jobs:
         run: node scripts/ci-health-check.mjs
 
       - name: Critical route smoke test
-        run: npm run smoke
+        run: timeout --signal=TERM --kill-after=10s 90s npm run smoke
 
       - name: API authentication smoke test
-        run: npm run smoke:api
+        run: timeout --signal=TERM --kill-after=10s 90s npm run smoke:api
 
       - name: Full MVP smoke validation
-        run: npm run smoke:mvp
+        run: timeout --signal=TERM --kill-after=10s 120s npm run smoke:mvp
 
       - name: Upload server log on failure
         if: failure()

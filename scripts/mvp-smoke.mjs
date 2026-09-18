@@ -27,6 +27,7 @@ const protectedApis = [
 const server = spawn(process.platform === "win32" ? "npx.cmd" : "npx", ["next", "start", "-p", port], {
   env: { ...process.env, PORT: port },
   stdio: "pipe",
+  detached: process.platform !== "win32",
 });
 
 let output = "";
@@ -74,14 +75,26 @@ function assertSecurityHeaders(response, path) {
 async function stopServer() {
   stopping = true;
   if (server.exitCode !== null || server.signalCode !== null) return;
-  server.kill("SIGTERM");
+
+  if (process.platform === "win32") {
+    server.kill("SIGTERM");
+    return;
+  }
+
+  try {
+    process.kill(-server.pid, "SIGTERM");
+  } catch {}
+
   await Promise.race([
     new Promise(resolve => server.once("exit", resolve)),
-    new Promise(resolve => setTimeout(() => {
-      if (server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
-      resolve();
-    }, 3000)),
+    new Promise(resolve => setTimeout(resolve, 3000)),
   ]);
+
+  if (server.exitCode === null && server.signalCode === null) {
+    try {
+      process.kill(-server.pid, "SIGKILL");
+    } catch {}
+  }
 }
 
 try {

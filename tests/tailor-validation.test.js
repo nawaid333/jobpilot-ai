@@ -1,6 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const { join } = require("node:path");
 
+const projectRoot = join(__dirname, "..");
+const tailorRoute = readFileSync(join(projectRoot, "src/app/api/tailor/route.ts"), "utf8");
 const allowed = new Set(["apply", "consider", "skip"]);
 
 function isValidPackage(value) {
@@ -37,4 +41,9 @@ test("rejects unsupported recommendation values", () => {
 
 test("rejects non-string missing requirements", () => {
   assert.equal(isValidPackage({ fitSummary: "x", tailoredSummary: "x", resumeEdits: [], coverLetter: "x", missingRequirements: [42], applicationRecommendation: "skip" }), false);
+});
+
+test("tailoring persistence supplies the required primary id on create", () => {
+  assert.match(tailorRoute, /create:\s*\{\s*id:\s*randomUUID\(\),\s*applicationId:/s);
+  assert.match(tailorRoute, /import \{ randomUUID \} from "node:crypto"/);
 });

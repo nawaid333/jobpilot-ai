@@ -53,8 +53,9 @@ test("MVP smoke uses the live health response field names", () => {
 
 test("MVP smoke always cleans up its child server", () => {
   assert.match(smokeScript, /async function stopServer\(\)/);
-  assert.match(smokeScript, /server\.kill\("SIGTERM"\)/);
-  assert.match(smokeScript, /server\.kill\("SIGKILL"\)/);
+  assert.match(smokeScript, /detached:\s*process\.platform !== "win32"/);
+  assert.match(smokeScript, /process\.kill\(-server\.pid, "SIGTERM"\)/);
+  assert.match(smokeScript, /process\.kill\(-server\.pid, "SIGKILL"\)/);
   assert.match(smokeScript, /finally\s*\{\s*await stopServer\(\);\s*\}/s);
 });
 

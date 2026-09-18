@@ -13,6 +13,7 @@ model User {
   name         String?
   image        String?
   passwordHash String
+  agentBriefPreferences Json?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   profile      CareerProfile?
@@ -124,7 +125,7 @@ model AgentAction {
 }
 
 model TailoredApplication {
-  id                  String       @id @default(cuid())
+  id                  String       @id
   applicationId       String       @unique
   tailoredSummary     String
   resumeEdits         Json
@@ -150,7 +151,7 @@ model InterviewPractice {
 }
 
 model GmailConnection {
-  id           String   @id @default(cuid())
+  id           String   @id
   userId       String   @unique
   provider     String   @default("google")
   email        String?
@@ -192,7 +193,7 @@ model EmailSignal {
 
 model Subscription {
   id                String   @id
-  userId             String   @unique
+  userId            String   @unique
   plan               String   @default("free")
   status             String   @default("active")
   provider           String?
