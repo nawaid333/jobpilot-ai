@@ -44,13 +44,12 @@ jobs:
         with:
           node-version: 20
           check-latest: true
-          cache: npm
 
       - name: Verify Node and npm
         run: node --version && npm --version
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Generate Prisma client
         run: npx prisma generate
