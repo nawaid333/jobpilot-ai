@@ -24,6 +24,6 @@ test("middleware applies the private cache policy to API routes", () => {
   assert.match(middlewareSource, /@\/lib\/api-cache/);
   assert.match(
     middlewareSource,
-    /pathname\.startsWith\(["']\/api\/["']\)\s*\{\s*setPrivateApiCacheHeaders\(response\.headers\);/s,
+    /if\s*\(request\.nextUrl\.pathname\.startsWith\(["']\/api\/["']\)\)\s*\{\s*setPrivateApiCacheHeaders\(response\.headers\);\s*\}/s,
   );
 });
