@@ -11,7 +11,7 @@ test("CSRF policy requires an explicit Origin and exact allowlist match", () => 
   assert.match(csrfSource, /const origin = request\.headers\.get\("origin"\);/);
   assert.match(csrfSource, /if \(!origin\) return false;/);
   assert.match(csrfSource, /return allowedOrigins\(\)\.has\(origin\.replace\(/);
-  assert.match(csrfSource, /replace\(\/\\\/\$\/, ""\)/);
+  assert.ok(csrfSource.includes('origin.replace(/\\/$/, "")'));
 });
 
 test("CSRF policy includes local, configured, and Vercel deployment origins", () => {
