@@ -32,7 +32,9 @@ try {
   const health = await waitForServer();
   if (health.status !== 200) throw new Error(`/api/health returned HTTP ${health.status}`);
   const healthBody = await health.json();
-  if (healthBody.status !== "ok" || healthBody.checks?.database !== "ok" || healthBody.checks?.configuration !== "ok") {
+  const checks = healthBody.checks ?? {};
+  const configurationStatus = checks.configuration ?? checks.config;
+  if (healthBody.status !== "ok" || checks.database !== "ok" || configurationStatus !== "ok") {
     throw new Error(`Health check is not healthy: ${JSON.stringify(healthBody)}`);
   }
   console.log("PASS /api/health (200, database + configuration healthy)");
