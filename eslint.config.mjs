@@ -3,7 +3,7 @@ import globals from "globals";
 import nextVitals from "eslint-config-next/core-web-vitals.js";
 
 export default defineConfig([
-  ...nextVitals,
+  nextVitals,
   {
     files: ["tests/**/*.js", "scripts/**/*.mjs"],
     languageOptions: {
