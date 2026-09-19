@@ -10,6 +10,8 @@ test("lint command is non-interactive and uses the repository ESLint config", as
 
   const config = await readFile(new URL("../eslint.config.mjs", import.meta.url), "utf8");
   assert.match(config, /eslint-config-next\/core-web-vitals\.js/);
+  assert.match(config, /(?<!\.)\bnextVitals\b/);
+  assert.doesNotMatch(config, /\.\.\.nextVitals/);
   assert.match(config, /globals\.node/);
   assert.match(config, /tests\/\*\*\/\*\.js/);
   assert.match(config, /scripts\/\*\*\/\*\.mjs/);
