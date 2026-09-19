@@ -1,9 +1,15 @@
+import { FlatCompat } from "@eslint/eslintrc";
 import { defineConfig, globalIgnores } from "eslint/config";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import globals from "globals";
-import nextVitals from "eslint-config-next/core-web-vitals.js";
+
+const compat = new FlatCompat({
+  baseDirectory: dirname(fileURLToPath(import.meta.url)),
+});
 
 export default defineConfig([
-  nextVitals,
+  ...compat.extends("next/core-web-vitals"),
   {
     files: ["tests/**/*.js", "scripts/**/*.mjs"],
     languageOptions: {
