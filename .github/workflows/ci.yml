@@ -35,6 +35,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Generate Prisma client
         run: npx prisma generate
+      - name: Run regression tests
+        run: npm test
       - name: Prepare database
         run: npx prisma db push --skip-generate
         env:

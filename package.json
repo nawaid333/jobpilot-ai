@@ -6,8 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "test": "node --test",
+    "lint": "eslint .",
+    "test": "node --test tests",
     "smoke": "node scripts/smoke-test.mjs",
     "smoke:api": "node scripts/api-smoke.mjs",
     "smoke:production": "node scripts/production-smoke.mjs",
@@ -26,9 +26,13 @@
     "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
     "@types/node": "^20.17.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "15.5.24",
+    "globals": "^16.4.0",
     "typescript": "^5.8.3",
     "prisma": "^6.15.0"
   }
