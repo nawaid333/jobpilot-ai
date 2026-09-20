@@ -9,6 +9,8 @@ const PUBLIC_ROUTE_PREFIXES = [
   `${path.join("health")}${path.sep}`,
   `${path.join("billing", "webhook")}${path.sep}`,
   `${path.join("gmail", "callback")}${path.sep}`,
+  // Public job discovery endpoints intentionally expose no user data.
+  `${path.join("jobs")}${path.sep}`,
 ];
 
 const AUTH_GUARD_MARKERS = [
@@ -59,4 +61,5 @@ test("the authorization audit keeps its public-route exceptions explicit", () =>
   assert.ok(PUBLIC_ROUTE_PREFIXES.includes(`${path.join("health")}${path.sep}`));
   assert.ok(PUBLIC_ROUTE_PREFIXES.includes(`${path.join("gmail", "callback")}${path.sep}`));
   assert.ok(PUBLIC_ROUTE_PREFIXES.includes(`${path.join("billing", "webhook")}${path.sep}`));
+  assert.ok(PUBLIC_ROUTE_PREFIXES.includes(`${path.join("jobs")}${path.sep}`));
 });
