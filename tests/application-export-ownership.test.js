@@ -10,22 +10,22 @@ test("PDF resume export requires an application id and scopes the lookup to the 
 
   assert.match(
     source,
-    /const id=clean\(p\.get\("applicationId"\)\)/,
+    /const\s+id\s*=\s*clean\(p\.get\("applicationId"\)\)/,
     "PDF export must read the requested application id",
   );
   assert.match(
     source,
-    /if\(!id\|\|id\.length>100\)return NextResponse\.json\(\{error:"applicationId is required"\},\{status:400\}\)/,
+    /if\s*\(!id\s*\|\|\s*id\.length\s*>\s*100\)\s*\{\s*return NextResponse\.json\(\{\s*error:\s*"applicationId is required"\s*\},\s*\{\s*status:\s*400\s*\}\)/s,
     "PDF export must reject a missing or oversized application id",
   );
   assert.match(
     source,
-    /prisma\.application\.findFirst\(\{where:\{id,userId:user\.id\}/,
+    /prisma\.application\.findFirst\(\{\s*where:\s*\{\s*id\s*,\s*userId:\s*user\.id\s*\}/s,
     "PDF export must only load an application owned by the authenticated user",
   );
   assert.doesNotMatch(
     source,
-    /prisma\.application\.findFirst\(\{where:\{userId:user\.id\}/,
+    /prisma\.application\.findFirst\(\{\s*where:\s*\{\s*userId:\s*user\.id\s*\}/s,
     "PDF export must not select an arbitrary application from the user's records",
   );
 });
