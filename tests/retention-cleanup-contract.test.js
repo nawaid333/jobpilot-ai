@@ -23,6 +23,14 @@ test("cleanup is bounded and never deletes application records", () => {
   assert.match(script, /applications: \{ none: \{\} \}/);
 });
 
+test("cleanup rechecks mutable retention predicates before destructive deletion", () => {
+  assert.match(script, /expiresAt: \{ lt: cutoffs\.sessionExpiresBefore \}/);
+  assert.match(script, /createdAt: \{ lt: cutoffs\.emailSignalCreatedBefore \}/);
+  assert.match(script, /month: \{ lt: cutoffs\.aiUsageMonthBefore \}/);
+  assert.match(script, /lastSeenAt: \{ lt: cutoffs\.jobLastSeenBefore \}/);
+  assert.match(script, /applications: \{ none: \{\} \}/g);
+});
+
 test("cleanup targets only documented retention data", () => {
   assert.match(script, /prisma\.session\.findMany/);
   assert.match(script, /prisma\.emailSignal\.findMany/);
