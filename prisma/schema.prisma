@@ -83,6 +83,7 @@ model Job {
   lastSeenAt   DateTime      @updatedAt
   applications Application[]
   emailSignals EmailSignal[]
+  @@index([lastSeenAt])
 }
 
 model Application {
@@ -105,6 +106,7 @@ model Application {
   agentActions       AgentAction[]
   @@unique([userId, jobId])
   @@index([userId, status])
+  @@index([userId, followUpDueAt])
 }
 
 model AgentAction {
@@ -187,6 +189,7 @@ model EmailSignal {
   @@unique([userId, gmailMessageId])
   @@index([userId, category])
   @@index([applicationId])
+  @@index([userId, createdAt])
 }
 
 model Subscription {
@@ -213,4 +216,5 @@ model AiUsage {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([userId, month])
   @@index([userId])
+  @@index([month])
 }
