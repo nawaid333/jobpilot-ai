@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isAllowedOrigin, isMutation } from "@/lib/csrf";
+import { setPrivateApiCacheHeaders } from "@/lib/api-cache";
 
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
@@ -10,6 +11,10 @@ export function middleware(request: NextRequest) {
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    setPrivateApiCacheHeaders(response.headers);
+  }
 
   if (process.env.NODE_ENV === "production") {
     response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
