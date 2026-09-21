@@ -82,12 +82,24 @@ async function collectCandidates(cutoffs, batchSize) {
   };
 }
 
-async function deleteCandidates(candidates) {
+async function deleteCandidates(candidates, cutoffs) {
   const [sessions, emailSignals, aiUsage, jobs] = await prisma.$transaction([
-    prisma.session.deleteMany({ where: { id: { in: candidates.sessions } } }),
-    prisma.emailSignal.deleteMany({ where: { id: { in: candidates.emailSignals } } }),
-    prisma.aiUsage.deleteMany({ where: { id: { in: candidates.aiUsage } } }),
-    prisma.job.deleteMany({ where: { id: { in: candidates.jobs } } }),
+    prisma.session.deleteMany({
+      where: { id: { in: candidates.sessions }, expiresAt: { lt: cutoffs.sessionExpiresBefore } },
+    }),
+    prisma.emailSignal.deleteMany({
+      where: { id: { in: candidates.emailSignals }, createdAt: { lt: cutoffs.emailSignalCreatedBefore } },
+    }),
+    prisma.aiUsage.deleteMany({
+      where: { id: { in: candidates.aiUsage }, month: { lt: cutoffs.aiUsageMonthBefore } },
+    }),
+    prisma.job.deleteMany({
+      where: {
+        id: { in: candidates.jobs },
+        lastSeenAt: { lt: cutoffs.jobLastSeenBefore },
+        applications: { none: {} },
+      },
+    }),
   ]);
 
   return {
@@ -126,7 +138,7 @@ async function main() {
         aiUsage: candidates.aiUsage.length,
         jobs: candidates.jobs.length,
       }
-    : await deleteCandidates(candidates);
+    : await deleteCandidates(candidates, cutoffs);
 
   console.log(JSON.stringify({
     mode: dryRun ? "dry-run" : "execute",
