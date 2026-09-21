@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -12,8 +13,14 @@ export async function GET(){
 export async function DELETE(){
   const user=await getCurrentUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  await prisma.gmailConnection.deleteMany({where:{userId:user.id}});
-  // Remove derived email intelligence when Gmail is disconnected.
-  await prisma.emailSignal.deleteMany({where:{userId:user.id}});
+
+  await prisma.$transaction(async tx=>{
+    await tx.gmailConnection.deleteMany({where:{userId:user.id}});
+    // Remove derived email intelligence when Gmail is disconnected.
+    await tx.emailSignal.deleteMany({where:{userId:user.id}});
+  });
+
+  const c=await cookies();
+  c.delete("jobpilot-gmail-state");
   return NextResponse.json({ok:true});
 }
