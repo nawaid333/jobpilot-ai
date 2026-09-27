@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { isAllowedOrigin, isMutation } from "@/lib/csrf";
 import { setPrivateApiCacheHeaders } from "@/lib/api-cache";
 
+export const runtime = "nodejs";
+
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
 
