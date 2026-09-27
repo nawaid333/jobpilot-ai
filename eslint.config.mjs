@@ -7,5 +7,10 @@ const compat = new FlatCompat({
 
 export default defineConfig([
   ...compat.extends("next/core-web-vitals"),
+  {
+    rules: {
+      "react/no-unescaped-entities": "off",
+    },
+  },
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
 ]);
