@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildProactiveInsights } from "../src/lib/proactive-intelligence.ts";
+import { buildProactiveInsights } from "../src/lib/proactive-intelligence.mjs";
 
 const now = new Date("2026-09-27T10:00:00.000Z");
 const job = { title: "Project Coordinator", company: "Example Co" };
