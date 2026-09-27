@@ -1,11 +1,11 @@
 const DAY = 86_400_000;
 
 export function buildProactiveInsights(
-  applications: ApplicationLike[],
-  signals: SignalLike[],
+  applications,
+  signals,
   now = new Date()
-): ProactiveInsight[] {
-  const insights: ProactiveInsight[] = [];
+) {
+  const insights = [];
 
   for (const app of applications) {
     const matchingSignals = signals.filter((signal) => signal.applicationId === app.id);
