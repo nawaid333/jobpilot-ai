@@ -20,7 +20,7 @@ async function waitForServer() {
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
       const response = await request("/api/health");
-      return response;
+      if (response.status === 200) return response;
     } catch {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
@@ -30,9 +30,8 @@ async function waitForServer() {
 
 try {
   const health = await waitForServer();
-  if (health.status !== 200) throw new Error(`/api/health returned HTTP ${health.status}`);
   const healthBody = await health.json();
-  if (healthBody.status !== "ok" || healthBody.checks?.database !== "ok" || healthBody.checks?.configuration !== "ok") {
+  if (healthBody.status !== "ok" || healthBody.checks?.database !== "ok" || healthBody.checks?.config !== "ok") {
     throw new Error(`Health check is not healthy: ${JSON.stringify(healthBody)}`);
   }
   console.log("PASS /api/health (200, database + configuration healthy)");

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -20,7 +21,7 @@ function validFeedback(value: unknown) { if (!value || typeof value !== "object"
 function validQuestions(value: unknown) { if (!value || typeof value !== "object") return []; const x=value as Record<string,unknown>; if(!Array.isArray(x.questions))return []; return x.questions.slice(0,8).filter((q):q is Record<string,unknown>=>!!q&&typeof q==="object").map((q,i)=>({id:`q${i+1}`,type:typeof q.type==="string"&&["behavioral","skills","role","experience","motivation"].includes(q.type)?q.type:"role",question:typeof q.question==="string"?q.question.slice(0,1000):"",why:typeof q.why==="string"?q.why.slice(0,500):"Tests role fit."})).filter(q=>q.question); }
 async function savePractice(applicationId:string,question:string,answer:string,feedback:unknown,mode:string,completed=false){
   return prisma.$transaction(async tx=>{
-    await tx.interviewPractice.create({data:{applicationId,question,answer,feedback:feedback as any,mode}});
+    await tx.interviewPractice.create({data:{id:crypto.randomUUID(),applicationId,question,answer,feedback:feedback as any,mode}});
     const application=await tx.application.findUnique({where:{id:applicationId},select:{interviewCompletedAt:true,status:true}});
     if(completed&&!application?.interviewCompletedAt){
       const completedAt=new Date();
