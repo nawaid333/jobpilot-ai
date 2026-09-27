@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --test",
+    "test": "node --test tests",
     "smoke": "node scripts/smoke-test.mjs",
     "smoke:api": "node scripts/api-smoke.mjs",
     "smoke:production": "node scripts/production-smoke.mjs",
