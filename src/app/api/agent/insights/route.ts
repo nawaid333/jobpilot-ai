@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
-import { buildProactiveInsights } from "@/lib/proactive-intelligence";
+import { buildProactiveInsights } from "@/lib/proactive-intelligence.mjs";
 
 export async function GET() {
   const user = await getCurrentUser();
