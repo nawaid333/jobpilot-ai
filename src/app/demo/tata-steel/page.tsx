@@ -18,7 +18,7 @@ export default function TataSteelDemo() {
     <main className="ts-demo">
       <nav className="nav shell">
         <Link className="brand" href="/">
-          <span className="brand-mark">✦</span>JobPilot<span className="brand-ai">AI</span>
+          <img className="brand-logo" src="/jobpilot-mark.svg" alt="JobPilot AI" /><span>JobPilot<span className="brand-ai">AI</span></span>
         </Link>
         <div className="ts-badge">PARTNERSHIP DEMO</div>
         <Link className="nav-cta" href="/onboarding">Open product ↗</Link>
