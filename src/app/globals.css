@@ -29,3 +29,56 @@
 .ts-hero>.ts-partner-brand{margin-top:24px;padding:10px 13px;border:1px solid var(--line);border-radius:12px;background:#fff;width:max-content}
 .ts-hero>.ts-partner-brand .ts-tata-mark{width:38px!important;height:38px!important}
 @media(max-width:800px){.ts-nav-partner{display:none}}
+
+/* Premium Tata Steel enterprise demo refresh */
+.ts-demo{background:#f4f7fb;color:#101923;overflow:hidden}
+.ts-demo .nav{border-bottom-color:#d8e1eb;background:rgba(255,255,255,.82)}
+.ts-demo .nav-cta{background:#10233a;color:#fff;padding:11px 15px;border-radius:10px}
+.ts-nav-partner{display:flex;align-items:center;margin-left:auto;margin-right:18px}
+.ts-tata-logo{display:block;width:148px;height:auto;max-height:32px;object-fit:contain}
+.ts-badge{color:#56708a!important}
+.ts-hero{position:relative;padding:82px 0 68px;grid-template-columns:minmax(0,1fr) 330px}
+.ts-hero:before{content:"";position:absolute;inset:0 -40vw;background:radial-gradient(circle at 72% 40%,#d9efff 0,#f4f7fb 36%,transparent 60%);z-index:-1}
+.ts-hero h1{font-size:clamp(54px,7vw,88px);max-width:850px}
+.ts-hero h1 em{color:#1769a9;background:linear-gradient(90deg,#0b5ca8,#19a7d8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ts-hero p{font-size:17px;max-width:690px;color:#53677b}
+.ts-note{background:#fff;border-color:#d7e2ed;box-shadow:0 12px 35px #193d5b0d}
+.ts-metric{background:linear-gradient(145deg,#081d33,#103d65);border:1px solid #2c6a9b;box-shadow:0 24px 60px #0d35542b;overflow:hidden}
+.ts-metric-kicker{font-size:9px!important;letter-spacing:.16em!important;color:#72c9ef!important;font-weight:800}
+.ts-metric strong{color:#62d3ff;text-shadow:0 0 28px #39bfff66}
+.ts-mini-bars{display:flex;gap:5px;margin-top:17px}
+.ts-mini-bars i{height:3px;flex:1;background:linear-gradient(90deg,#1aa8e1,#fff);border-radius:9px;opacity:.8}
+.ts-brand-strip{border-top:1px solid #dce6ef;border-bottom:1px solid #dce6ef;background:#fff}
+.ts-brand-strip .shell{min-height:70px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.ts-brand-strip .shell>div{display:flex;align-items:center;gap:10px}
+.ts-brand-strip b{font:700 13px 'Space Grotesk';letter-spacing:.08em}
+.ts-brand-strip small{font-size:8px;letter-spacing:.12em;color:#8495a5;margin-left:4px}
+.ts-brand-strip .shell>span{font-size:9px;letter-spacing:.15em;color:#7b8d9f}
+.ts-brand-dot{width:8px;height:8px;border-radius:50%;background:#1c75bc;box-shadow:0 0 0 5px #dceef9}
+.ts-workspace{padding-top:45px}
+.ts-panel{border-color:#d8e3ed;border-radius:22px;box-shadow:0 20px 55px #173b5710}
+.ts-panel h2{color:#14263a}
+.ts-status{color:#0b6591;background:#e3f4fb}
+.ts-chips span{background:#eef5f9;color:#39566e;border:1px solid #e1ebf2}
+.ts-jobs .ts-job-static{border-top:1px solid #e8eef3;padding:15px 3px;display:flex;justify-content:space-between;align-items:center}
+.ts-job-static b,.ts-job-static small{display:block}
+.ts-job-static b{font-size:12px}.ts-job-static small{font-size:10px;color:#8797a6;margin-top:4px}
+.ts-job-static strong{color:#0c6e9b;background:#e4f6fc;padding:7px 9px;border-radius:8px;font-size:11px}
+.ts-score{color:#0c6e9b;background:#e4f6fc}
+.ts-match>i{background:#e5ebf1}
+.ts-match u{background:linear-gradient(90deg,#1769a9,#22b6e8)}
+.ts-skills{background:#f0f6fa;border:1px solid #e0eaf1}
+.ts-button{background:#102d49;border-color:#102d49;box-shadow:0 10px 25px #102d4918}
+.ts-flow{padding-top:105px}
+.ts-section-head small{color:#1b78ae}
+.ts-section-head h2 em{color:#1769a9}
+.ts-steps{border-color:#d8e3ed}
+.ts-steps article{border-color:#d8e3ed}
+.ts-steps article>b{color:#1b78ae}
+.ts-steps h3{color:#14263a}
+.ts-steps p{color:#607487}
+.ts-demo .footer{border-top-color:#d8e3ed}
+@media(max-width:800px){
+ .ts-nav-partner{display:none}.ts-brand-strip .shell{padding:14px 0;align-items:flex-start;flex-direction:column}
+ .ts-brand-strip .shell>span{display:none}.ts-hero{padding-top:55px}
+}
