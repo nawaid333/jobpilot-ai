@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 
-export async function GET() {
-  const companies = (process.env.JOBPILOT_LEVER_COMPANIES || "").split(",").map(x => x.trim()).filter(Boolean);
-  return NextResponse.json({
-    ok: true,
-    configured: companies.length > 0,
-    sourceCount: Math.min(companies.length, 20),
-    source: "Lever",
-    checkedAt: new Date().toISOString(),
-  });
+function listEnv(name:string){return (process.env[name]||"").split(",").map(x=>x.trim()).filter(Boolean).slice(0,20);}
+
+export async function GET(){
+ const lever=listEnv("JOBPILOT_LEVER_COMPANIES");
+ const greenhouse=listEnv("JOBPILOT_GREENHOUSE_BOARDS");
+ const sourceCount=lever.length+greenhouse.length;
+ return NextResponse.json({
+   ok:true,
+   configured:sourceCount>0,
+   sourceCount,
+   sources:{lever:lever.length,greenhouse:greenhouse.length},
+   checkedAt:new Date().toISOString(),
+ });
 }
