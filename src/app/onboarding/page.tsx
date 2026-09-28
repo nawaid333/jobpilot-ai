@@ -6,7 +6,7 @@ import Link from "next/link";
 const steps = [
   { label: "Create your source of truth", title: "Start with your CV", text: "Upload your CV so JobPilot can build a career profile from facts you can support.", href: "/analyze", action: "Analyze my CV" },
   { label: "Shape your target", title: "Set your job preferences", text: "Choose target roles, locations, work mode and seniority so recommendations reflect what you actually want.", href: "/profile", action: "Set preferences" },
-  { label: "Find your fit", title: "Discover relevant jobs", text: "Review live opportunities ranked against your career profile and preferences.", href: "/discover", action: "Discover jobs" },
+  { label: "Find your fit", title: "Discover relevant jobs", text: "Review live opportunities ranked against your career profile and preferences.", href: "/jobs", action: "Discover jobs" },
 ];
 
 export default function OnboardingPage() {
