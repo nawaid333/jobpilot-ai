@@ -82,3 +82,15 @@
  .ts-nav-partner{display:none}.ts-brand-strip .shell{padding:14px 0;align-items:flex-start;flex-direction:column}
  .ts-brand-strip .shell>span{display:none}.ts-hero{padding-top:55px}
 }
+
+
+/* Tata Steel header/logo cleanup */
+.ts-demo .nav{min-height:82px;gap:20px}
+.ts-nav-partner{display:flex;align-items:center;gap:9px;margin-left:auto;margin-right:6px;padding-right:18px;border-right:1px solid #dbe4ec}
+.ts-tata-symbol{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#1769a9;color:#fff;font:700 15px 'Space Grotesk';box-shadow:0 5px 14px #1769a925}
+.ts-tata-wordmark{font:700 14px 'Space Grotesk';letter-spacing:.08em;color:#174f82;white-space:nowrap}
+.ts-hero{align-items:center}
+.ts-hero .eyebrow{color:#18324a;background:rgba(255,255,255,.72)}
+.ts-hero h1{margin-top:28px}
+.ts-metric{align-self:center}
+@media(max-width:800px){.ts-nav-partner{display:none}.ts-demo .nav{gap:10px}.ts-badge{margin-left:auto}}
