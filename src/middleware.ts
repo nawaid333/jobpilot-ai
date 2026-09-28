@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isAllowedOrigin, isMutation } from "@/lib/csrf";
 import { setPrivateApiCacheHeaders } from "@/lib/api-cache";
-import { setProductionContentSecurityPolicy } from "@/lib/content-security-policy";
+
+export const runtime = "nodejs";
 
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
@@ -19,7 +20,6 @@ export function middleware(request: NextRequest) {
 
   if (process.env.NODE_ENV === "production") {
     response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-    setProductionContentSecurityPolicy(response.headers);
   }
 
   if (request.nextUrl.pathname.startsWith("/api/") && isMutation(request)) {
