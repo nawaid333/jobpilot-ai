@@ -32,13 +32,14 @@ export function validateServerEnv() {
 
   if (isProduction) {
     required("OPENAI_API_KEY");
-    required("GMAIL_TOKEN_ENCRYPTION_KEY");
 
     const gmailClientId = optional("GOOGLE_CLIENT_ID");
     const gmailClientSecret = optional("GOOGLE_CLIENT_SECRET");
     const gmailRedirect = optional("GOOGLE_REDIRECT_URI");
-    if (gmailClientId || gmailClientSecret || gmailRedirect) {
-      if (!gmailClientId || !gmailClientSecret || !gmailRedirect) {
+    const gmailEncryptionKey = optional("GMAIL_TOKEN_ENCRYPTION_KEY");
+    const gmailConfigured = Boolean(gmailClientId || gmailClientSecret || gmailRedirect || gmailEncryptionKey);
+    if (gmailConfigured) {
+      if (!gmailClientId || !gmailClientSecret || !gmailRedirect || !gmailEncryptionKey) {
         throw new Error("Google OAuth configuration is incomplete");
       }
       validateUrl("GOOGLE_REDIRECT_URI", gmailRedirect);
