@@ -11,7 +11,7 @@ async function fetchLever(slug:string){
  const response=await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`,{next:{revalidate:900}});
  if(!response.ok)throw new Error(`Lever source ${slug} returned ${response.status}`);
  const postings=await response.json() as LeverPosting[];
- return {source:"Lever",slug,jobs:postings.slice(0,500).map(job=>({id:`lever:${slug}:${job.id}`,title:job.text,company:slug,location:job.categories?.location||job.categories?.allLocations?.join(", ")||"Not specified",mode:job.workplaceType||"Not specified",level:job.categories?.level||"Not specified",commitment:job.categories?.commitment||"",team:job.categories?.team||"",description:job.content?.description||"",salary:job.salaryDescription||"",url:job.urls?.show||job.urls?.apply||"",applyUrl:job.urls?.apply||job.urls?.show||"",source:"Lever"}))};
+ return {source:"Lever",slug,jobs:postings.slice(0,500).map(job=>({id:`lever:${slug}:${job.id}`,title:job.text,company:slug,location:job.categories?.location||job.categories?.allLocations?.join(", ")||"Not specified",mode:job.workplaceType||"Not specified",level:job.categories?.level||"Not specified",commitment:job.categories?.commitment||"",team:job.categories?.team||"",description:job.content?.description||"",salary:job.salaryDescription||"",url:job.urls?.show||job.urls?.apply||"",applyUrl:job.urls?.apply||job.urls?.show||"",source:"Lever",skills:[]}))};
 }
 
 async function fetchGreenhouse(token:string){
