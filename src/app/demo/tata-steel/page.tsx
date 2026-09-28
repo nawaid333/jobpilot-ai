@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 
 const jobs = [
@@ -13,12 +13,12 @@ export default function TataSteelDemo() {
   const [selected, setSelected] = useState(0);
   const [generated, setGenerated] = useState(false);
   const job = jobs[selected];
-  const steps = useMemo(() => [
+  const steps: Array<[string, string, string]> = [
     ["01", "Career profile", "Verified experience and skills extracted from the candidate CV."],
     ["02", "Role matching", `AI compares the profile against ${job.title} requirements.`],
     ["03", "Application pack", "Tailored CV points and a cover letter are prepared from verified facts."],
     ["04", "Human review", "Candidate reviews and submits through the employer's permitted channel."],
-  ], [job.title]);
+  ];
 
   return <main className="ts-demo">
     <nav className="nav shell"><Link className="brand" href="/"><span className="brand-mark">✦</span>JobPilot<span className="brand-ai">AI</span></Link><div className="ts-badge">PARTNERSHIP DEMO</div><Link className="nav-cta" href="/onboarding">Open product ↗</Link></nav>
