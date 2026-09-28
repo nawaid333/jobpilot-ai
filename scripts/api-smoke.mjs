@@ -1,18 +1,29 @@
 const base = process.env.SMOKE_BASE_URL || "http://127.0.0.1:3000";
 
 const checks = [
-  { name: "health", path: "/api/health", expected: [200] },
-  { name: "applications requires auth", path: "/api/applications", expected: [401, 403] },
-  { name: "recommendations requires auth", path: "/api/jobs/recommend", expected: [401, 403] },
-  { name: "tailoring requires auth", path: "/api/tailor", expected: [401, 403] },
-  { name: "agent requires auth", path: "/api/agent/execute", expected: [401, 403] },
+  { name: "health", path: "/api/health", method: "GET", expected: [200] },
+  { name: "applications requires auth", path: "/api/applications", method: "GET", expected: [401, 403] },
+  { name: "recommendations requires auth", path: "/api/jobs/recommend", method: "GET", expected: [401, 403] },
+  { name: "tailoring requires auth", path: "/api/tailor", method: "POST", expected: [401, 403] },
+  { name: "agent requires auth", path: "/api/agent/execute", method: "POST", expected: [401, 403] },
 ];
 
 const requiredHeaders = ["x-content-type-options", "x-frame-options", "referrer-policy"];
 let failed = false;
 
 async function runCheck(check) {
-  const response = await fetch(`${base}${check.path}`, { redirect: "manual", signal: AbortSignal.timeout(5000) });
+  const options = {
+    method: check.method,
+    redirect: "manual",
+    signal: AbortSignal.timeout(5000),
+  };
+
+  if (check.method === "POST") {
+    options.headers = { "content-type": "application/json" };
+    options.body = "{}";
+  }
+
+  const response = await fetch(`${base}${check.path}`, options);
   const body = await response.text();
   if (!check.expected.includes(response.status)) {
     throw new Error(`expected HTTP ${check.expected.join(" or ")}, got ${response.status}: ${body.slice(0, 300)}`);
