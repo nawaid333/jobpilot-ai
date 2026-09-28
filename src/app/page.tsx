@@ -9,7 +9,7 @@ const features = [
 
 export default function Home() {
   return <main>
-    <nav className="nav shell"><a className="brand" href="#top"><span className="brand-mark">✦</span>JobPilot<span className="brand-ai">AI</span></a><div className="nav-links"><a href="#how">How it works</a><a href="#features">Features</a><a href="#pricing">Pricing</a></div><a className="nav-cta" href="/onboarding">Get started <Arrow /></a></nav>
+    <nav className="nav shell"><a className="brand" href="#top"><span className="brand-mark">✦</span>JobPilot<span className="brand-ai">AI</span></a><div className="nav-links"><a href="#how">How it works</a><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="/demo/tata-steel">Enterprise demo</a></div><a className="nav-cta" href="/onboarding">Get started <Arrow /></a></nav>
 
     <section className="hero shell" id="top">
       <div className="hero-copy"><div className="eyebrow"><span className="pulse" /> AI-powered job search</div><h1>Stop searching.<br /><em>Start landing.</em></h1><p className="hero-text">JobPilot AI turns your CV into a smarter job search — matching you with relevant opportunities and helping you apply with confidence.</p><div className="hero-actions" id="start"><a className="button primary" href="/onboarding">Start my job search <Arrow /></a><a className="button secondary" href="#how">See how it works</a></div><div className="trust-row"><span><Check /> No fake experience</span><span><Check /> Human-in-control</span><span><Check /> Built for real fit</span></div></div>
