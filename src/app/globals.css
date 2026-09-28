@@ -94,3 +94,16 @@
 .ts-hero h1{margin-top:28px}
 .ts-metric{align-self:center}
 @media(max-width:800px){.ts-nav-partner{display:none}.ts-demo .nav{gap:10px}.ts-badge{margin-left:auto}}
+
+
+/* Tata Steel visual showcase */
+.ts-visual{display:grid;grid-template-columns:1.18fr .82fr;gap:42px;align-items:center;padding-top:72px}
+.ts-visual-image{height:430px;border-radius:26px;overflow:hidden;position:relative;background:#0c2237;box-shadow:0 28px 70px #173b5720;border:1px solid #d5e1eb}
+.ts-visual-image img{width:100%;height:100%;display:block;object-fit:cover;object-position:center;filter:saturate(.9) contrast(1.05)}
+.ts-image-overlay{position:absolute;inset:0;background:linear-gradient(90deg,#071a2db8 0%,#071a2d35 55%,#071a2d08 100%),linear-gradient(0deg,#071a2d99 0%,transparent 55%)}
+.ts-image-caption{position:absolute;left:28px;bottom:27px;color:#fff;display:flex;flex-direction:column;gap:7px;max-width:420px}
+.ts-image-caption span{font-size:9px;letter-spacing:.18em;font-weight:800;color:#75d3f4}.ts-image-caption b{font:600 28px/1.05 'Space Grotesk';letter-spacing:-.035em}
+.ts-image-float{position:absolute;right:22px;top:22px;background:rgba(7,29,49,.88);border:1px solid #ffffff35;backdrop-filter:blur(12px);color:#fff;border-radius:16px;padding:15px 17px;min-width:128px;box-shadow:0 12px 30px #06182a55}
+.ts-image-float small,.ts-image-float span{display:block;font-size:8px;letter-spacing:.12em;color:#a9c0d2}.ts-image-float strong{display:block;font:700 30px 'Space Grotesk';color:#66d5ff;margin:3px 0}
+.ts-visual-copy>small{font-size:9px;letter-spacing:.16em;color:#1979ad;font-weight:800}.ts-visual-copy h2{font:600 clamp(38px,4.3vw,57px)/1 'Space Grotesk';letter-spacing:-.06em;margin:15px 0 20px;color:#14263a}.ts-visual-copy h2 em{font-style:normal;color:#1769a9}.ts-visual-copy>p{color:#607487;line-height:1.75;font-size:14px;max-width:470px}.ts-visual-points{display:flex;flex-direction:column;border-top:1px solid #d8e3ed;margin-top:27px}.ts-visual-points span{padding:13px 0;border-bottom:1px solid #d8e3ed;font-size:11px;font-weight:700;color:#304b63}.ts-visual-points b{font-size:9px;color:#1a7bb1;margin-right:15px}
+@media(max-width:800px){.ts-visual{grid-template-columns:1fr;gap:28px;padding-top:55px}.ts-visual-image{height:360px}.ts-visual-copy h2{font-size:42px}}
