@@ -24,6 +24,7 @@ export default function AnalyzePage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   function chooseFile(selected: File | undefined) {
@@ -50,10 +51,24 @@ export default function AnalyzePage() {
     } finally { setAnalyzing(false); }
   }
 
-  function saveProfile() {
-    if (!analysis) return;
-    localStorage.setItem("jobpilot-career-profile", JSON.stringify({ ...analysis, savedAt: new Date().toISOString() }));
-    setSaved(true);
+  async function saveProfile() {
+    if (!analysis || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: analysis, preferences: { roles: analysis.targetRoles.join(", "), locations: analysis.candidate.location || "", workMode: "Any", seniority: "Any", minSalary: "", keywords: "" } }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not save your career profile.");
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save your career profile.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -96,7 +111,7 @@ export default function AnalyzePage() {
             <article className="result-panel wide"><small className="kicker">STRENGTHS</small><ul>{analysis.strengths.map((strength) => <li key={strength}>✓ {strength}</li>)}</ul></article>
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <button className="button primary" onClick={saveProfile}>{saved ? "✓ Saved to Career Profile" : "Save to Career Profile ↗"}</button>
+            <button className="button primary" onClick={saveProfile} disabled={saving}>{saving ? "Saving profile…" : saved ? "✓ Saved to Career Profile" : "Save to Career Profile ↗"}</button>
             {saved && <Link className="button secondary" href="/profile">Open Career Profile ↗</Link>}
             <button className="button secondary" onClick={() => { setAnalysis(null); setFile(null); setSaved(false); }}>Analyze another CV</button>
           </div>
