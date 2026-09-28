@@ -36,6 +36,21 @@ export default function TataSteelDemo() {
 
       <section className="ts-brand-strip"><div className="shell"><div><span className="ts-brand-dot"></span><b>TATA STEEL</b><small>INNOVATION WORKFLOW CONCEPT</small></div><span>JOBPILOT AI × TALENT INTELLIGENCE</span></div></section>
 
+      <section className="ts-visual shell">
+        <div className="ts-visual-image">
+          <img src="https://commons.wikimedia.org/wiki/Special:Redirect/file/Tata_Steel_view_2.png" alt="Tata Steel plant in Jamshedpur" />
+          <div className="ts-image-overlay"></div>
+          <div className="ts-image-caption"><span>JAMSHEDPUR</span><b>Industrial talent, connected by AI.</b></div>
+          <div className="ts-image-float"><small>LIVE DEMO SIGNAL</small><strong>94%</strong><span>role alignment</span></div>
+        </div>
+        <div className="ts-visual-copy">
+          <small>WHY THIS CONCEPT</small>
+          <h2>From candidate data to <em>role intelligence.</em></h2>
+          <p>JobPilot turns a candidate's verified experience into structured signals that can be compared with role requirements — giving teams a clearer starting point for human-led hiring decisions.</p>
+          <div className="ts-visual-points"><span><b>01</b> Profile intelligence</span><span><b>02</b> Role matching</span><span><b>03</b> Application readiness</span></div>
+        </div>
+      </section>
+
       <section className="ts-workspace shell">
         <div className="ts-panel">
           <div className="ts-panel-head">
