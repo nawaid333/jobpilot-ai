@@ -20,17 +20,13 @@ export default function TataSteelDemo() {
         <Link className="brand" href="/">
           <img className="brand-logo" src="/jobpilot-mark.svg" alt="JobPilot AI" /><span>JobPilot<span className="brand-ai">AI</span></span>
         </Link>
-        <div className="ts-nav-partner"><img className="ts-tata-logo" src="https://upload.wikimedia.org/wikipedia/commons/5/5d/Tata_Steel_Logo.svg" alt="Tata Steel" /></div><div className="ts-badge">CONCEPT DEMO</div>
+        <div className="ts-nav-partner" aria-label="Tata Steel concept"><span className="ts-tata-symbol" aria-hidden="true">T</span><span className="ts-tata-wordmark">TATA STEEL</span></div><div className="ts-badge">CONCEPT DEMO</div>
         <Link className="nav-cta" href="/onboarding">Open product ↗</Link>
       </nav>
 
       <section className="ts-hero shell">
         <div>
-          <div className="eyebrow"><span className="pulse" /> Enterprise AI workflow</div>
-          <div className="ts-partner-brand" aria-label="Tata Steel demo">
-            <span className="ts-tata-mark" aria-hidden="true"><i></i></span>
-            <span><b>TATA STEEL</b><small>DEMO EXPERIENCE</small></span>
-          </div>
+          <div className="eyebrow"><span className="pulse" /> Enterprise AI workflow · Jamshedpur</div>
           <h1>JobPilot × <em>Tata Steel</em></h1>
           <p>See how an AI-assisted talent workflow could connect candidate profiles to Tata Steel role requirements, prepare application materials, and keep every high-impact decision under human control.</p>
           <div className="ts-note"><b>PROOF OF CONCEPT</b><span>Conceptual workflow for an innovation discussion — not a Tata Steel partnership or endorsement.</span></div>
