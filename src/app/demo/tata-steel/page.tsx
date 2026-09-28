@@ -20,13 +20,20 @@ export default function TataSteelDemo() {
         <Link className="brand" href="/">
           <img className="brand-logo" src="/jobpilot-mark.svg" alt="JobPilot AI" /><span>JobPilot<span className="brand-ai">AI</span></span>
         </Link>
-        <div className="ts-badge">PARTNERSHIP DEMO</div>
+        <div className="ts-nav-partner"><div className="ts-partner-brand" aria-label="Tata Steel demo">
+            <span className="ts-tata-mark" aria-hidden="true"><i></i></span>
+            <span><b>TATA STEEL</b><small>DEMO EXPERIENCE</small></span>
+          </div></div><div className="ts-badge">PARTNERSHIP DEMO</div>
         <Link className="nav-cta" href="/onboarding">Open product ↗</Link>
       </nav>
 
       <section className="ts-hero shell">
         <div>
           <div className="eyebrow"><span className="pulse" /> Enterprise AI workflow</div>
+          <div className="ts-partner-brand" aria-label="Tata Steel demo">
+            <span className="ts-tata-mark" aria-hidden="true"><i></i></span>
+            <span><b>TATA STEEL</b><small>DEMO EXPERIENCE</small></span>
+          </div>
           <h1>JobPilot × <em>Tata Steel</em></h1>
           <p>Interactive proof-of-concept showing how JobPilot could support talent discovery and application preparation while keeping hiring decisions and submissions under human control.</p>
           <div className="ts-note"><b>DEMO STATUS</b><span>Conceptual workflow — not a Tata Steel partnership or endorsement.</span></div>
