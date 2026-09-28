@@ -8,14 +8,14 @@ function clientKey(request:Request){const forwarded=request.headers.get("x-forwa
 function listEnv(name:string,limit=20){return (process.env[name]||"").split(",").map(x=>x.trim()).filter(Boolean).slice(0,limit);}
 
 async function fetchLever(slug:string){
- const response=await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`,{next:{revalidate:900}});
+ const response=await fetch(`https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`,{next:{revalidate:900},signal:AbortSignal.timeout(8000)});
  if(!response.ok)throw new Error(`Lever source ${slug} returned ${response.status}`);
  const postings=await response.json() as LeverPosting[];
  return {source:"Lever",slug,jobs:postings.slice(0,500).map(job=>({id:`lever:${slug}:${job.id}`,title:job.text,company:slug,location:job.categories?.location||job.categories?.allLocations?.join(", ")||"Not specified",mode:job.workplaceType||"Not specified",level:job.categories?.level||"Not specified",commitment:job.categories?.commitment||"",team:job.categories?.team||"",description:job.content?.description||"",salary:job.salaryDescription||"",url:job.urls?.show||job.urls?.apply||"",applyUrl:job.urls?.apply||job.urls?.show||"",source:"Lever",skills:[]}))};
 }
 
 async function fetchGreenhouse(token:string){
- const response=await fetch(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(token)}/jobs?content=true`,{next:{revalidate:900}});
+ const response=await fetch(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(token)}/jobs?content=true`,{next:{revalidate:900},signal:AbortSignal.timeout(8000)});
  if(!response.ok)throw new Error(`Greenhouse source ${token} returned ${response.status}`);
  const data=await response.json() as {jobs:GreenhouseJob[]};
  return {source:"Greenhouse",slug:token,jobs:(data.jobs||[]).slice(0,500).map(job=>({id:`greenhouse:${token}:${job.id}`,title:job.title,company:token,location:job.location?.name||"Not specified",mode:"Not specified",level:"Not specified",description:job.content||"",salary:"",url:job.absolute_url||"",applyUrl:job.absolute_url||"",source:"Greenhouse",skills:(job.departments||[]).map(x=>x.name||"").filter(Boolean)}))};
