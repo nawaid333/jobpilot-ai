@@ -20,10 +20,7 @@ export default function TataSteelDemo() {
         <Link className="brand" href="/">
           <img className="brand-logo" src="/jobpilot-mark.svg" alt="JobPilot AI" /><span>JobPilot<span className="brand-ai">AI</span></span>
         </Link>
-        <div className="ts-nav-partner"><div className="ts-partner-brand" aria-label="Tata Steel demo">
-            <span className="ts-tata-mark" aria-hidden="true"><i></i></span>
-            <span><b>TATA STEEL</b><small>DEMO EXPERIENCE</small></span>
-          </div></div><div className="ts-badge">PARTNERSHIP DEMO</div>
+        <div className="ts-nav-partner"><img className="ts-tata-logo" src="https://upload.wikimedia.org/wikipedia/commons/5/5d/Tata_Steel_Logo.svg" alt="Tata Steel" /></div><div className="ts-badge">CONCEPT DEMO</div>
         <Link className="nav-cta" href="/onboarding">Open product ↗</Link>
       </nav>
 
@@ -35,11 +32,13 @@ export default function TataSteelDemo() {
             <span><b>TATA STEEL</b><small>DEMO EXPERIENCE</small></span>
           </div>
           <h1>JobPilot × <em>Tata Steel</em></h1>
-          <p>Interactive proof-of-concept showing how JobPilot could support talent discovery and application preparation while keeping hiring decisions and submissions under human control.</p>
-          <div className="ts-note"><b>DEMO STATUS</b><span>Conceptual workflow — not a Tata Steel partnership or endorsement.</span></div>
+          <p>See how an AI-assisted talent workflow could connect candidate profiles to Tata Steel role requirements, prepare application materials, and keep every high-impact decision under human control.</p>
+          <div className="ts-note"><b>PROOF OF CONCEPT</b><span>Conceptual workflow for an innovation discussion — not a Tata Steel partnership or endorsement.</span></div>
         </div>
-        <div className="ts-metric"><small>Candidate → role fit</small><strong>94%</strong><span>based on demo profile signals</span></div>
+        <div className="ts-metric"><span className="ts-metric-kicker">AI TALENT MATCHING</span><small>Candidate → role fit</small><strong>94%</strong><span>Demo profile signal alignment</span><div className="ts-mini-bars"><i></i><i></i><i></i></div></div>
       </section>
+
+      <section className="ts-brand-strip"><div className="shell"><div><span className="ts-brand-dot"></span><b>TATA STEEL</b><small>INNOVATION WORKFLOW CONCEPT</small></div><span>JOBPILOT AI × TALENT INTELLIGENCE</span></div></section>
 
       <section className="ts-workspace shell">
         <div className="ts-panel">
@@ -89,7 +88,7 @@ export default function TataSteelDemo() {
         </div>
       </section>
 
-      <footer className="footer shell"><span>JobPilot AI · Enterprise proof of concept</span><span>Prepared for innovation conversations</span></footer>
+      <footer className="footer shell"><span>JobPilot AI · Enterprise proof of concept</span><span>Concept only · No Tata Steel endorsement implied</span></footer>
     </main>
   );
 }
