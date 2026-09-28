@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="JobPilot AI">
+<defs>
+  <linearGradient id="blue" x1="18" y1="105" x2="110" y2="20" gradientUnits="userSpaceOnUse">
+    <stop stop-color="#1247ff"/><stop offset=".55" stop-color="#08c8ff"/><stop offset="1" stop-color="#dff8ff"/>
+  </linearGradient>
+  <linearGradient id="silver" x1="42" y1="18" x2="104" y2="106" gradientUnits="userSpaceOnUse">
+    <stop stop-color="#fff"/><stop offset=".6" stop-color="#dce4ef"/><stop offset="1" stop-color="#fff"/>
+  </linearGradient>
+  <filter id="glow"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<path d="M34 18h48c17 0 31 13 31 30v21c0 25-20 45-45 45H57V91h10c12 0 22-10 22-22V45H47l-13-27Z" fill="url(#silver)" filter="url(#glow)"/>
+<path d="M31 56h25v40c0 7-6 13-13 13H31c-7 0-13-6-13-13V69c0-7 6-13 13-13Z" fill="url(#blue)"/>
+<path d="M20 94c0 12 10 22 22 22 15 0 27-12 27-27V76h14l28-34-45 23v15c0 9-7 16-16 16-6 0-11-5-11-11V94Z" fill="url(#blue)" opacity=".96"/>
+<path d="m43 62 57-27-30 36-27-9Z" fill="#1bdcff"/>
+<path d="m43 62 57-27-34 17-23 10Z" fill="#0b8dff"/>
+</svg>
