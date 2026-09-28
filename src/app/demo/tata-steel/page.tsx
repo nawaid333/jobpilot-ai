@@ -105,6 +105,21 @@ export default function TataSteelDemo() {
         </div>
       </section>
 
+      <section className="ts-product-flow shell">
+        <div className="ts-section-head">
+          <small>THE FULL JOBPILOT JOURNEY</small>
+          <h2>From <em>skill</em> to opportunity.</h2>
+        </div>
+        <div className="ts-product-grid">
+          <article><span>01</span><h3>Profile</h3><p>Capture education, skills, experience, location and goals.</p></article>
+          <article><span>02</span><h3>Discover</h3><p>Continuously identify openings that fit the candidate's real profile.</p></article>
+          <article><span>03</span><h3>Match</h3><p>Explain why a role is relevant instead of showing generic job lists.</p></article>
+          <article><span>04</span><h3>Apply</h3><p>Prepare an ATS-ready CV and role-specific cover letter from verified facts.</p></article>
+          <article><span>05</span><h3>Track</h3><p>Keep applications, stages, follow-ups and outcomes in one workflow.</p></article>
+          <article><span>06</span><h3>Prepare</h3><p>Start interview practice from the actual role being pursued.</p></article>
+        </div>
+      </section>
+
       <section className="ts-flow shell">
         <div className="ts-section-head"><small>CONTROLLED AUTOMATION</small><h2>AI prepares. <em>Humans decide.</em></h2></div>
         <div className="ts-steps">
