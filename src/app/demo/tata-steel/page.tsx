@@ -38,7 +38,7 @@ export default function TataSteelDemo() {
 
       <section className="ts-visual shell">
         <div className="ts-visual-image">
-          <img src="https://commons.wikimedia.org/wiki/Special:Redirect/file/Tata_Steel_view_2.png" alt="Tata Steel plant in Jamshedpur" />
+          <img src="https://etimg.etb2bimg.com/thumb/msid-124618538%2Cwidth-1200%2Cheight-900%2Cresizemode-4/.jpg" alt="Tata Steel plant in Jamshedpur" />
           <div className="ts-image-overlay"></div>
           <div className="ts-image-caption"><span>JAMSHEDPUR</span><b>Industrial talent, connected by AI.</b></div>
           <div className="ts-image-float"><small>LIVE DEMO SIGNAL</small><strong>94%</strong><span>role alignment</span></div>
