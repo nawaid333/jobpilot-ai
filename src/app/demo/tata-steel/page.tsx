@@ -51,6 +51,21 @@ export default function TataSteelDemo() {
         </div>
       </section>
 
+      <section className="ts-mission shell">
+        <div className="ts-mission-copy">
+          <small>THE PROBLEM WE WANT TO SOLVE</small>
+          <h2>Good skills should not get lost in a <em>complicated job search.</em></h2>
+          <p>Many skilled workers and degree holders can do the work but struggle with the digital hiring process: finding the right opening, understanding requirements, building an ATS-ready CV, writing applications and preparing for interviews.</p>
+          <p>JobPilot is designed to turn a person's real skills and experience into a guided path to relevant opportunities.</p>
+        </div>
+        <div className="ts-segment-grid">
+          <div><b>Skilled technicians</b><span>HVAC · Electrical · Mechanical · Maintenance</span></div>
+          <div><b>Frontline workforce</b><span>Operators · Technicians · Service · Facilities</span></div>
+          <div><b>Degree holders</b><span>Graduates who need help finding role-fit opportunities</span></div>
+          <div><b>Freshers</b><span>Skills and education translated into realistic entry-level roles</span></div>
+        </div>
+      </section>
+
       <section className="ts-workspace shell">
         <div className="ts-panel">
           <div className="ts-panel-head">
