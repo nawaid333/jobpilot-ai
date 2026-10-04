@@ -87,12 +87,16 @@ jobs:
       - name: Wait for server
         run: |
           for i in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3000/api/health > /tmp/health.json; then
+            if curl --silent --show-error --output /tmp/health.json --write-out "%{http_code}" http://127.0.0.1:3000/api/health > /tmp/health-status.txt; then
+              status="$(cat /tmp/health-status.txt)"
+              echo "Health endpoint responded with HTTP $status"
               cat /tmp/health.json
-              break
+              if [ "$status" != "000" ]; then
+                break
+              fi
             fi
             if [ "$i" -eq 30 ]; then
-              echo "Production server did not become ready"
+              echo "Production server did not become reachable"
               cat /tmp/jobpilot-next.log
               exit 1
             fi
