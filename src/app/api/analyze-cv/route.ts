@@ -6,6 +6,19 @@ import { rateLimit } from "@/lib/rate-limit";
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 const MAX_REQUEST_SIZE = MAX_FILE_SIZE + 256 * 1024;
 const ALLOWED_TYPES = new Set(["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
+async function openAiError(response: Response) {
+  try {
+    const body = await response.json() as { error?: { message?: string; code?: string; type?: string } };
+    return {
+      message: body?.error?.message || "The AI service rejected the request.",
+      code: body?.error?.code || null,
+      type: body?.error?.type || null,
+    };
+  } catch {
+    return { message: "The AI service rejected the request.", code: null, type: null };
+  }
+}
+
 const ANALYSIS_PROMPT = `You are JobPilot AI's CV analysis engine.
 Analyze the uploaded CV for ATS readiness and real job-market usefulness.
 Never invent facts. Only extract skills, experience, education, achievements, certifications, and other information that is actually present.
@@ -50,13 +63,27 @@ export async function POST(request: Request) {
     upload.append("purpose", "user_data");
     upload.append("file", file, file.name);
     const fileResponse = await fetch("https://api.openai.com/v1/files", { method: "POST", headers: { Authorization: `Bearer ${apiKey}` }, body: upload });
-    if (!fileResponse.ok) return NextResponse.json({ error: "CV upload to the AI service failed." }, { status: 502 });
+    if (!fileResponse.ok) {
+      const providerError = await openAiError(fileResponse);
+      console.error("CV AI file upload failed", { status: fileResponse.status, ...providerError });
+      return NextResponse.json(
+        { error: "CV upload to the AI service failed.", providerStatus: fileResponse.status, providerCode: providerError.code, providerMessage: providerError.message },
+        { status: 502 },
+      );
+    }
     const uploaded = (await fileResponse.json()) as { id?: string };
     uploadedFileId = uploaded.id;
     if (!uploadedFileId) return NextResponse.json({ error: "AI service did not return a file ID." }, { status: 502 });
 
     const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "gpt-6-luna", input: [{ role: "user", content: [{ type: "input_text", text: ANALYSIS_PROMPT }, { type: "input_file", file_id: uploadedFileId }] }] }) });
-    if (!response.ok) return NextResponse.json({ error: "CV analysis failed." }, { status: 502 });
+    if (!response.ok) {
+      const providerError = await openAiError(response);
+      console.error("CV AI analysis failed", { status: response.status, ...providerError });
+      return NextResponse.json(
+        { error: "CV analysis failed.", providerStatus: response.status, providerCode: providerError.code, providerMessage: providerError.message },
+        { status: 502 },
+      );
+    }
     const result = await response.json();
     const outputText = typeof result.output_text === "string" ? result.output_text : "";
     const cleaned = outputText.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
