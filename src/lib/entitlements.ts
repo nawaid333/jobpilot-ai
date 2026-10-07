@@ -51,3 +51,26 @@ export async function consumeAiCredit(userId: string) {
     return { ok: false as const, entitlements: { ...entitlements } };
   }
 }
+
+/**
+ * Return a previously reserved AI credit when the AI operation fails.
+ * This prevents users losing monthly credits because of provider failures,
+ * invalid output, or an application-side persistence error.
+ */
+export async function releaseAiCredit(userId: string) {
+  const month = monthKey();
+  try {
+    await prisma.$transaction(async (tx) => {
+      const usage = await tx.aiUsage.findUnique({ where: { userId_month: { userId, month } } });
+      if (!usage || usage.credits <= 0) return;
+
+      if (usage.credits === 1) {
+        await tx.aiUsage.delete({ where: { id: usage.id } });
+      } else {
+        await tx.aiUsage.update({ where: { id: usage.id }, data: { credits: { decrement: 1 } } });
+      }
+    }, { isolationLevel: "Serializable" });
+  } catch {
+    // Never mask the original provider/application error.
+  }
+}
