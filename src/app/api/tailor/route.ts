@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { consumeAiCredit } from "@/lib/entitlements";
+import { consumeAiCredit, releaseAiCredit } from "@/lib/entitlements";
 import { rateLimit } from "@/lib/rate-limit";
 
 const allowedRecommendations = new Set(["apply", "consider", "skip"]);
@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const limit = rateLimit(`tailor:${user.id}`, 10, 60_000);
   if (!limit.ok) return NextResponse.json({ error: "Too many tailoring requests. Please try again shortly." }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } });
+
+  let creditReserved = false;
   try {
     const body = await request.json();
     const jobId = body?.jobId ? String(body.jobId) : "";
@@ -53,8 +55,10 @@ export async function POST(request: NextRequest) {
 
     const key = process.env.OPENAI_API_KEY;
     if (!key) return NextResponse.json({ error: "AI tailoring service is not configured." }, { status: 503 });
+
     const credit = await consumeAiCredit(user.id);
     if (!credit.ok) return NextResponse.json({ error: "Monthly AI limit reached.", plan: credit.entitlements.planKey, usage: credit.entitlements.usage, remainingAi: 0 }, { status: 429 });
+    creditReserved = true;
 
     const prompt = `Create an application-ready, truthful tailoring package. Never invent experience, metrics, employers, education, certifications or skills. Only reframe facts explicitly present in the candidate profile. Keep every claim grounded in the supplied profile. If a job requirement is not supported by the profile, put it in missingRequirements instead of inventing evidence.
 Candidate profile: ${JSON.stringify(profile)}
@@ -77,16 +81,26 @@ Job: ${JSON.stringify(application.job)}`;
         },
       }),
     });
-    if (!response.ok) return NextResponse.json({ error: "AI tailoring service failed." }, { status: 502 });
+    if (!response.ok) {
+      await releaseAiCredit(user.id);
+      creditReserved = false;
+      return NextResponse.json({ error: "AI tailoring service failed." }, { status: 502 });
+    }
 
     const data = await response.json();
     const text = data.output_text || data.output?.flatMap((x: { content?: { text?: string }[] }) => x.content || []).map((x: { text?: string }) => x.text || "").join("") || "";
-    if (!text) return NextResponse.json({ error: "AI returned an empty tailoring package." }, { status: 502 });
+    if (!text) {
+      await releaseAiCredit(user.id);
+      creditReserved = false;
+      return NextResponse.json({ error: "AI returned an empty tailoring package." }, { status: 502 });
+    }
 
     let result: any;
     try {
-      result = JSON.parse(text.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim());
+      result = JSON.parse(text.replace(/^\`\`\`json\s*/i, "").replace(/\s*\`\`\`$/i, "").trim());
     } catch {
+      await releaseAiCredit(user.id);
+      creditReserved = false;
       return NextResponse.json({ error: "The AI returned an invalid tailoring package." }, { status: 502 });
     }
 
@@ -99,7 +113,11 @@ Job: ${JSON.stringify(application.job)}`;
       !Array.isArray(result.missingRequirements) ||
       result.missingRequirements.some((item: any) => typeof item !== "string") ||
       !allowedRecommendations.has(result.applicationRecommendation)
-    ) return NextResponse.json({ error: "AI returned an invalid tailoring package." }, { status: 502 });
+    ) {
+      await releaseAiCredit(user.id);
+      creditReserved = false;
+      return NextResponse.json({ error: "AI returned an invalid tailoring package." }, { status: 502 });
+    }
 
     const saved = await prisma.tailoredApplication.upsert({
       where: { applicationId: application.id },
@@ -107,8 +125,10 @@ Job: ${JSON.stringify(application.job)}`;
       update: { tailoredSummary: result.tailoredSummary, resumeEdits: result.resumeEdits, coverLetter: result.coverLetter, missingRequirements: result.missingRequirements, recommendation: result.applicationRecommendation },
     });
     const updatedApplication = application.status === "Saved" ? await prisma.application.update({ where: { id: application.id }, data: { status: "Preparing" } }) : application;
+    creditReserved = false;
     return NextResponse.json({ result: { ...result, id: saved.id }, job: application.job, applicationId: application.id, status: updatedApplication.status, persisted: true, remainingAi: credit.entitlements.remainingAi });
   } catch {
+    if (creditReserved) await releaseAiCredit(user.id);
     return NextResponse.json({ error: "Unable to create the tailored application package." }, { status: 400 });
   }
 }
