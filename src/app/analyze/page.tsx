@@ -44,7 +44,10 @@ export default function AnalyzePage() {
       const body = new FormData(); body.append("file", file);
       const response = await fetch("/api/analyze-cv", { method: "POST", body });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Analysis failed.");
+      if (!response.ok) {
+        const detail = typeof data.providerMessage === "string" ? data.providerMessage : "";
+        throw new Error(detail ? (data.error || "Analysis failed.") + " — " + detail : (data.error || "Analysis failed."));
+      }
       setAnalysis(data.analysis);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
