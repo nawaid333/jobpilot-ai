@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     uploadedFileId = uploaded.id;
     if (!uploadedFileId) return NextResponse.json({ error: "AI service did not return a file ID." }, { status: 502 });
 
-    const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "gpt-5.6-luna", input: [{ role: "user", content: [{ type: "input_text", text: ANALYSIS_PROMPT }, { type: "input_file", file_id: uploadedFileId }] }] }) });
+    const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "gpt-6-luna", input: [{ role: "user", content: [{ type: "input_text", text: ANALYSIS_PROMPT }, { type: "input_file", file_id: uploadedFileId }] }] }) });
     if (!response.ok) return NextResponse.json({ error: "CV analysis failed." }, { status: 502 });
     const result = await response.json();
     const outputText = typeof result.output_text === "string" ? result.output_text : "";
