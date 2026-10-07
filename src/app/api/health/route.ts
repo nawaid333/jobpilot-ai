@@ -25,11 +25,16 @@ export async function GET(request: Request) {
     payments: "disabled",
   };
 
+  let configError: string | undefined;
+
   try {
     validateServerEnv();
     checks.config = "ok";
-  } catch {
+  } catch (error) {
     checks.config = "error";
+    // Expose only the validation message (which contains variable names, never values)
+    // so production health can be diagnosed without leaking secrets.
+    configError = error instanceof Error ? error.message : "Invalid production configuration";
   }
 
   try {
@@ -41,7 +46,14 @@ export async function GET(request: Request) {
 
   const ok = checks.database === "ok" && checks.config === "ok";
   return NextResponse.json(
-    { ok, status: ok ? "ok" : "degraded", checks, latencyMs: Date.now() - startedAt, timestamp: new Date().toISOString() },
+    {
+      ok,
+      status: ok ? "ok" : "degraded",
+      checks,
+      ...(configError ? { configError } : {}),
+      latencyMs: Date.now() - startedAt,
+      timestamp: new Date().toISOString(),
+    },
     { status: ok ? 200 : 503 }
   );
 }
