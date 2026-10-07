@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { consumeAiCredit } from "@/lib/entitlements";
+import { consumeAiCredit, releaseAiCredit } from "@/lib/entitlements";
 import { rateLimit } from "@/lib/rate-limit";
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 const MAX_REQUEST_SIZE = MAX_FILE_SIZE + 256 * 1024;
 const ALLOWED_TYPES = new Set(["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
+
 async function openAiError(response: Response) {
   try {
     const body = await response.json() as { error?: { message?: string; code?: string; type?: string } };
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
   if (contentLength > MAX_REQUEST_SIZE) return NextResponse.json({ error: "CV upload request is too large." }, { status: 413 });
 
   let uploadedFileId: string | undefined;
+  let creditReserved = false;
   try {
     const formData = await request.formData();
     const file = formData.get("file");
@@ -59,6 +61,8 @@ export async function POST(request: Request) {
 
     const credit = await consumeAiCredit(user.id);
     if (!credit.ok) return NextResponse.json({ error: "Monthly AI limit reached.", plan: credit.entitlements.planKey, usage: credit.entitlements.usage, remainingAi: 0 }, { status: 429 });
+    creditReserved = true;
+
     const upload = new FormData();
     upload.append("purpose", "user_data");
     upload.append("file", file, file.name);
@@ -66,32 +70,55 @@ export async function POST(request: Request) {
     if (!fileResponse.ok) {
       const providerError = await openAiError(fileResponse);
       console.error("CV AI file upload failed", { status: fileResponse.status, ...providerError });
+      await releaseAiCredit(user.id);
+      creditReserved = false;
       return NextResponse.json(
         { error: "CV upload to the AI service failed.", providerStatus: fileResponse.status, providerCode: providerError.code, providerMessage: providerError.message },
         { status: 502 },
       );
     }
+
     const uploaded = (await fileResponse.json()) as { id?: string };
     uploadedFileId = uploaded.id;
-    if (!uploadedFileId) return NextResponse.json({ error: "AI service did not return a file ID." }, { status: 502 });
+    if (!uploadedFileId) {
+      await releaseAiCredit(user.id);
+      creditReserved = false;
+      return NextResponse.json({ error: "AI service did not return a file ID." }, { status: 502 });
+    }
 
-    const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "gpt-6-luna", input: [{ role: "user", content: [{ type: "input_text", text: ANALYSIS_PROMPT }, { type: "input_file", file_id: uploadedFileId }] }] }) });
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "gpt-6-luna", input: [{ role: "user", content: [{ type: "input_text", text: ANALYSIS_PROMPT }, { type: "input_file", file_id: uploadedFileId }] }] }),
+    });
     if (!response.ok) {
       const providerError = await openAiError(response);
       console.error("CV AI analysis failed", { status: response.status, ...providerError });
+      await releaseAiCredit(user.id);
+      creditReserved = false;
       return NextResponse.json(
         { error: "CV analysis failed.", providerStatus: response.status, providerCode: providerError.code, providerMessage: providerError.message },
         { status: 502 },
       );
     }
+
     const result = await response.json();
     const outputText = typeof result.output_text === "string" ? result.output_text : "";
-    const cleaned = outputText.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+    const cleaned = outputText.replace(/^\`\`\`json\s*/i, "").replace(/\s*\`\`\`$/i, "").trim();
     let analysis: unknown;
-    try { analysis = JSON.parse(cleaned); } catch { return NextResponse.json({ error: "The AI returned an invalid analysis format." }, { status: 502 }); }
+    try {
+      analysis = JSON.parse(cleaned);
+    } catch {
+      await releaseAiCredit(user.id);
+      creditReserved = false;
+      return NextResponse.json({ error: "The AI returned an invalid analysis format." }, { status: 502 });
+    }
+
+    creditReserved = false;
     return NextResponse.json({ analysis, remainingAi: credit.entitlements.remainingAi });
   } catch (error) {
     console.error("CV analysis error", error);
+    if (creditReserved) await releaseAiCredit(user.id);
     return NextResponse.json({ error: "Unexpected server error while analyzing the CV." }, { status: 500 });
   } finally {
     if (uploadedFileId) {
