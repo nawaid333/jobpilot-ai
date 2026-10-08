@@ -1,15 +1,22 @@
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
 
 const MAX_EXTRACTED_TEXT = 60_000;
+
+type PdfParseV2Module = {
+  PDFParse: new (options: { data: Buffer }) => {
+    getText(): Promise<{ text: string }>;
+    destroy(): Promise<void>;
+  };
+};
 
 export async function extractCvText(file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
 
   if (file.type === "application/pdf") {
-    // pdf-parse v2 uses its supported PDFParse API and avoids v1's
-    // legacy test-data loader, which fails in serverless deployments.
-    const parser = new PDFParse({ data: buffer });
+    // Load v2 at runtime to avoid TypeScript resolving stale v1 declarations
+    // in a cached build. package.json pins the supported v2 release.
+    const pdfModule = (await import("pdf-parse")) as unknown as PdfParseV2Module;
+    const parser = new pdfModule.PDFParse({ data: buffer });
     try {
       const parsed = await parser.getText();
       return normalizeCvText(parsed.text);
@@ -28,9 +35,9 @@ export async function extractCvText(file: File) {
 
 function normalizeCvText(text: string) {
   const normalized = text
-    .replace(/\u0000/g, "")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\\u0000/g, "")
+    .replace(/[ \\t]+/g, " ")
+    .replace(/\\n{3,}/g, "\\n\\n")
     .trim();
 
   if (!normalized) {
