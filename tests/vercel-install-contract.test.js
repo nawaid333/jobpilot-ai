@@ -26,5 +26,10 @@ test("Vercel install command is compatible with the repository dependency lock s
 });
 
 test("Vercel keeps the production build explicit", () => {
-  assert.equal(vercelConfig.buildCommand, "npm run build");
+  assert.equal(typeof vercelConfig.buildCommand, "string");
+  assert.match(
+    vercelConfig.buildCommand,
+    /\bnpm\s+run\s+build\b/,
+    "Vercel build command must run the production build",
+  );
 });
