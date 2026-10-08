@@ -1,4 +1,5 @@
 import mammoth from "mammoth";
+import { PDFParse } from "pdf-parse";
 
 const MAX_EXTRACTED_TEXT = 60_000;
 
@@ -6,12 +7,15 @@ export async function extractCvText(file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
 
   if (file.type === "application/pdf") {
-    // pdf-parse v1.1.1 executes test-data loading at module initialization.
-    // Keep it request-scoped so Next.js can collect route data during builds.
-    const pdfModule = await import("pdf-parse");
-    const pdfParse = pdfModule.default;
-    const parsed = await pdfParse(buffer);
-    return normalizeCvText(parsed.text);
+    // pdf-parse v2 uses its supported PDFParse API and avoids v1's
+    // legacy test-data loader, which fails in serverless deployments.
+    const parser = new PDFParse({ data: buffer });
+    try {
+      const parsed = await parser.getText();
+      return normalizeCvText(parsed.text);
+    } finally {
+      await parser.destroy();
+    }
   }
 
   if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
