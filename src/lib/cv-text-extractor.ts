@@ -35,9 +35,9 @@ export async function extractCvText(file: File) {
 
 function normalizeCvText(text: string) {
   const normalized = text
-    .replace(/\\u0000/g, "")
-    .replace(/[ \\t]+/g, " ")
-    .replace(/\\n{3,}/g, "\\n\\n")
+    .replace(/\u0000/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 
   if (!normalized) {
