@@ -16,7 +16,8 @@
     "retention:cleanup": "node scripts/retention-cleanup.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "vercel-build": "node scripts/vercel-build.mjs"
   },
   "dependencies": {
     "next": "15.5.24",
