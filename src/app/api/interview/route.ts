@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { consumeAiCredit } from "@/lib/entitlements";
+import { consumeAiCredit, releaseAiCredit } from "@/lib/entitlements";
 import { rateLimit } from "@/lib/rate-limit";
+import { hasAiProvider, runAiText } from "@/lib/ai-provider";
 
 function fallbackQuestions(job: { title: string; company: string; description: string | null }, profile: any) {
   const skills = Array.isArray(profile?.skills) ? profile.skills.slice(0, 5).join(", ") : "your relevant skills";
@@ -15,46 +16,233 @@ function fallbackQuestions(job: { title: string; company: string; description: s
     { id: "q6", type: "motivation", question: `Why are you interested in ${job.company} and this role?`, why: "Tests motivation without requiring invented company facts." }
   ];
 }
-function rulesFeedback() { return { score: null, verdict: "Evidence review", strengths: ["You answered the question directly."], improvements: ["Add a specific situation, your actions, and a measurable or observable result where truthful."], followUp: "What was your specific contribution and what changed because of it?" }; }
-function validFeedback(value: unknown) { if (!value || typeof value !== "object") return null; const x=value as Record<string,unknown>; const score=typeof x.score==="number"&&Number.isFinite(x.score)?Math.max(0,Math.min(100,Math.round(x.score))):null; return {score,verdict:typeof x.verdict==="string"?x.verdict.slice(0,300):"Evidence review",strengths:Array.isArray(x.strengths)?x.strengths.filter((v):v is string=>typeof v==="string").slice(0,3).map(v=>v.slice(0,500)):[],improvements:Array.isArray(x.improvements)?x.improvements.filter((v):v is string=>typeof v==="string").slice(0,3).map(v=>v.slice(0,500)):[],followUp:typeof x.followUp==="string"?x.followUp.slice(0,1000):"What was your specific contribution and what changed because of it?"}; }
-function validQuestions(value: unknown) { if (!value || typeof value !== "object") return []; const x=value as Record<string,unknown>; if(!Array.isArray(x.questions))return []; return x.questions.slice(0,8).filter((q):q is Record<string,unknown>=>!!q&&typeof q==="object").map((q,i)=>({id:`q${i+1}`,type:typeof q.type==="string"&&["behavioral","skills","role","experience","motivation"].includes(q.type)?q.type:"role",question:typeof q.question==="string"?q.question.slice(0,1000):"",why:typeof q.why==="string"?q.why.slice(0,500):"Tests role fit."})).filter(q=>q.question); }
-async function savePractice(applicationId:string,question:string,answer:string,feedback:unknown,mode:string,completed=false){
-  return prisma.$transaction(async tx=>{
-    await tx.interviewPractice.create({data:{applicationId,question,answer,feedback:feedback as any,mode}});
-    const application=await tx.application.findUnique({where:{id:applicationId},select:{interviewCompletedAt:true,status:true}});
-    if(completed&&!application?.interviewCompletedAt){
-      const completedAt=new Date();
-      const safeStatus=["Saved","Preparing","Applied","Interview"].includes(application?.status||"")?"Interview":undefined;
-      await tx.application.update({where:{id:applicationId},data:{interviewCompletedAt:completedAt,interviewOutcome:null,...(safeStatus?{status:safeStatus}:{})}});
+
+function rulesFeedback() {
+  return {
+    score: null,
+    verdict: "Evidence review",
+    strengths: ["You answered the question directly."],
+    improvements: ["Add a specific situation, your actions, and a measurable or observable result where truthful."],
+    followUp: "What was your specific contribution and what changed because of it?"
+  };
+}
+
+function cleanJson(text: string) {
+  const fence = String.fromCharCode(96).repeat(3);
+  return text.trim()
+    .replace(new RegExp("^" + fence + "json\\s*", "i"), "")
+    .replace(new RegExp(fence + "\\s*$"), "")
+    .trim();
+}
+
+function validFeedback(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const x = value as Record<string, unknown>;
+  const score = typeof x.score === "number" && Number.isFinite(x.score)
+    ? Math.max(0, Math.min(100, Math.round(x.score)))
+    : null;
+  return {
+    score,
+    verdict: typeof x.verdict === "string" ? x.verdict.slice(0, 300) : "Evidence review",
+    strengths: Array.isArray(x.strengths)
+      ? x.strengths.filter((v): v is string => typeof v === "string").slice(0, 3).map(v => v.slice(0, 500))
+      : [],
+    improvements: Array.isArray(x.improvements)
+      ? x.improvements.filter((v): v is string => typeof v === "string").slice(0, 3).map(v => v.slice(0, 500))
+      : [],
+    followUp: typeof x.followUp === "string"
+      ? x.followUp.slice(0, 1000)
+      : "What was your specific contribution and what changed because of it?"
+  };
+}
+
+function validQuestions(value: unknown) {
+  if (!value || typeof value !== "object") return [];
+  const x = value as Record<string, unknown>;
+  if (!Array.isArray(x.questions)) return [];
+  return x.questions
+    .slice(0, 8)
+    .filter((q): q is Record<string, unknown> => !!q && typeof q === "object")
+    .map((q, i) => ({
+      id: `q${i + 1}`,
+      type: typeof q.type === "string" && ["behavioral", "skills", "role", "experience", "motivation"].includes(q.type) ? q.type : "role",
+      question: typeof q.question === "string" ? q.question.slice(0, 1000) : "",
+      why: typeof q.why === "string" ? q.why.slice(0, 500) : "Tests role fit."
+    }))
+    .filter(q => q.question);
+}
+
+async function savePractice(applicationId: string, question: string, answer: string, feedback: unknown, mode: string, completed = false) {
+  return prisma.$transaction(async tx => {
+    await tx.interviewPractice.create({ data: { applicationId, question, answer, feedback: feedback as any, mode } });
+    const application = await tx.application.findUnique({
+      where: { id: applicationId },
+      select: { interviewCompletedAt: true, status: true }
+    });
+    if (completed && !application?.interviewCompletedAt) {
+      const completedAt = new Date();
+      const safeStatus = ["Saved", "Preparing", "Applied", "Interview"].includes(application?.status || "") ? "Interview" : undefined;
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { interviewCompletedAt: completedAt, interviewOutcome: null, ...(safeStatus ? { status: safeStatus } : {}) }
+      });
       return completedAt;
     }
-    return application?.interviewCompletedAt||null;
+    return application?.interviewCompletedAt || null;
   });
 }
-export async function GET(req:Request){
-  const user=await getCurrentUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  const applicationId=new URL(req.url).searchParams.get("applicationId")?.trim()||"";
-  if(!applicationId)return NextResponse.json({error:"applicationId is required"},{status:400});
-  const application=await prisma.application.findFirst({where:{id:applicationId,userId:user.id}}); if(!application)return NextResponse.json({error:"Application not found"},{status:404});
-  const practices=await prisma.interviewPractice.findMany({where:{applicationId},orderBy:{createdAt:"desc"},take:20});
-  return NextResponse.json({practices,interviewCompletedAt:application.interviewCompletedAt,interviewOutcome:application.interviewOutcome});
+
+export async function GET(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const applicationId = new URL(req.url).searchParams.get("applicationId")?.trim() || "";
+  if (!applicationId) return NextResponse.json({ error: "applicationId is required" }, { status: 400 });
+  const application = await prisma.application.findFirst({ where: { id: applicationId, userId: user.id } });
+  if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
+  const practices = await prisma.interviewPractice.findMany({ where: { applicationId }, orderBy: { createdAt: "desc" }, take: 20 });
+  return NextResponse.json({ practices, interviewCompletedAt: application.interviewCompletedAt, interviewOutcome: application.interviewOutcome });
 }
+
 export async function POST(req: Request) {
-  const user=await getCurrentUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  const limit=rateLimit(`interview:${user.id}`,10,60_000); if(!limit.ok)return NextResponse.json({error:"Too many Interview Coach requests. Please try again shortly."},{status:429,headers:{"Retry-After":String(limit.retryAfterSeconds)}});
-  const contentLength=Number(req.headers.get("content-length")||0); if(contentLength>32_000)return NextResponse.json({error:"Request is too large."},{status:413});
-  const body=await req.json().catch(()=>null); if(!body||typeof body!=="object"||Array.isArray(body))return NextResponse.json({error:"Invalid request body."},{status:400});
-  const applicationId=typeof (body as any).applicationId==="string"?(body as any).applicationId.trim():""; const mode=(body as any).mode==="feedback"?"feedback":"questions";
-  if(!applicationId||applicationId.length>100)return NextResponse.json({error:"applicationId is required"},{status:400});
-  const application=await prisma.application.findFirst({where:{id:applicationId,userId:user.id},include:{job:true}}); if(!application)return NextResponse.json({error:"Application not found"},{status:404});
-  const profile=await prisma.careerProfile.findUnique({where:{userId:user.id}}); const profileFacts=profile?{headline:profile.headline,summary:profile.summary,skills:profile.skills,targetRoles:profile.targetRoles,experience:profile.experience,education:profile.education,strengths:profile.strengths}:null; const fallback=fallbackQuestions(application.job,profile);
-  let completed=false;
-  if(mode==="feedback"){const answer=typeof (body as any).answer==="string"?(body as any).answer.trim():"";const question=typeof (body as any).question==="string"?(body as any).question.trim():"";if(!answer||!question)return NextResponse.json({error:"question and answer are required"},{status:400});if(answer.length>12_000||question.length>2_000)return NextResponse.json({error:"Question or answer is too long."},{status:413});completed=(body as any).completed===true;}
-  if(!process.env.OPENAI_API_KEY){if(mode==="feedback"){const feedback=rulesFeedback();const completedAt=await savePractice(applicationId,(body as any).question,(body as any).answer,feedback,"rules",completed);return NextResponse.json({feedback,mode:"rules",completed,interviewCompletedAt:completedAt});}return NextResponse.json({questions:fallback,mode:"rules",job:application.job});}
-  const credit=await consumeAiCredit(user.id); if(!credit.ok){if(mode==="feedback"){const feedback=rulesFeedback();const completedAt=await savePractice(applicationId,(body as any).question,(body as any).answer,feedback,"rules",completed);return NextResponse.json({feedback,mode:"rules",aiLimited:true,remainingAi:0,completed,interviewCompletedAt:completedAt});}return NextResponse.json({questions:fallback,mode:"rules",job:application.job,aiLimited:true,remainingAi:0});}
-  try { const prompt=mode==="feedback"?`You are JobPilot AI Interview Coach. Review a candidate's interview answer using ONLY the supplied facts. Never invent experience, metrics, employers, tools, dates, responsibilities, or outcomes. If the answer contains unsupported claims, flag them rather than validating them. Give practical coaching, not hiring guarantees. JOB: ${application.job.title} at ${application.job.company}. Location: ${application.job.location}. Description: ${(application.job.description||"").slice(0,7000)}. CAREER PROFILE: ${JSON.stringify(profileFacts).slice(0,12000)}. QUESTION: ${(body as any).question}. CANDIDATE ANSWER: ${(body as any).answer}. Return JSON only: {"score":number,"verdict":string,"strengths":string[],"improvements":string[],"followUp":string}. Max 3 strengths/improvements.`:`You are JobPilot AI Interview Coach. Generate interview practice questions for a candidate and a saved job. Use ONLY the supplied job description and career profile. Never assume a skill, employer, project, achievement, metric, technology, date, or responsibility that is not present. Questions should test fit, behavior, role skills, and motivation. Do not claim what the company will ask. JOB: ${application.job.title} at ${application.job.company}. Location: ${application.job.location}. Description: ${(application.job.description||"").slice(0,8000)}. CAREER PROFILE: ${JSON.stringify(profileFacts).slice(0,12000)}. Return JSON only: {"questions":[{"id":"q1","type":"behavioral|skills|role|experience|motivation","question":"...","why":"..."}]} with exactly 8 questions.`;
-    const response=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${process.env.OPENAI_API_KEY}`},body:JSON.stringify({model:"gpt-5.6-luna",messages:[{role:"user",content:prompt}],temperature:mode==="feedback"?0.2:0.3,response_format:{type:"json_object"}})}); if(!response.ok)throw new Error("AI request failed"); const data=await response.json(); const parsed=JSON.parse(data.choices?.[0]?.message?.content||"{}");
-    if(mode==="feedback"){const feedback=validFeedback(parsed)||rulesFeedback();const savedMode=validFeedback(parsed)?"ai":"rules";const completedAt=await savePractice(applicationId,(body as any).question,(body as any).answer,feedback,savedMode,completed);return NextResponse.json({feedback,mode:savedMode,remainingAi:credit.entitlements.remainingAi,completed,interviewCompletedAt:completedAt});}
-    const questions=validQuestions(parsed);return NextResponse.json({questions:questions.length?questions:fallback,mode:questions.length?"ai":"rules",job:application.job,remainingAi:credit.entitlements.remainingAi});
-  } catch { if(mode==="feedback"){const feedback=rulesFeedback();const completedAt=await savePractice(applicationId,(body as any).question,(body as any).answer,feedback,"rules",completed);return NextResponse.json({feedback,mode:"rules",remainingAi:credit.entitlements.remainingAi,completed,interviewCompletedAt:completedAt});}return NextResponse.json({questions:fallback,mode:"rules",job:application.job,remainingAi:credit.entitlements.remainingAi}); }
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limit = rateLimit(`interview:${user.id}`, 10, 60_000);
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "Too many Interview Coach requests. Please try again shortly." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
+  }
+
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (contentLength > 32_000) return NextResponse.json({ error: "Request is too large." }, { status: 413 });
+
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const applicationId = typeof (body as any).applicationId === "string" ? (body as any).applicationId.trim() : "";
+  const mode = (body as any).mode === "feedback" ? "feedback" : "questions";
+  if (!applicationId || applicationId.length > 100) return NextResponse.json({ error: "applicationId is required" }, { status: 400 });
+
+  const application = await prisma.application.findFirst({
+    where: { id: applicationId, userId: user.id },
+    include: { job: true }
+  });
+  if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
+
+  const profile = await prisma.careerProfile.findUnique({ where: { userId: user.id } });
+  const profileFacts = profile
+    ? {
+        headline: profile.headline,
+        summary: profile.summary,
+        skills: profile.skills,
+        targetRoles: profile.targetRoles,
+        experience: profile.experience,
+        education: profile.education,
+        strengths: profile.strengths
+      }
+    : null;
+  const fallback = fallbackQuestions(application.job, profile);
+
+  let completed = false;
+  if (mode === "feedback") {
+    const answer = typeof (body as any).answer === "string" ? (body as any).answer.trim() : "";
+    const question = typeof (body as any).question === "string" ? (body as any).question.trim() : "";
+    if (!answer || !question) return NextResponse.json({ error: "question and answer are required" }, { status: 400 });
+    if (answer.length > 12_000 || question.length > 2_000) {
+      return NextResponse.json({ error: "Question or answer is too long." }, { status: 413 });
+    }
+    completed = (body as any).completed === true;
+  }
+
+  if (!hasAiProvider()) {
+    if (mode === "feedback") {
+      const feedback = rulesFeedback();
+      const completedAt = await savePractice(applicationId, (body as any).question, (body as any).answer, feedback, "rules", completed);
+      return NextResponse.json({ feedback, mode: "rules", completed, interviewCompletedAt: completedAt });
+    }
+    return NextResponse.json({ questions: fallback, mode: "rules", job: application.job });
+  }
+
+  const credit = await consumeAiCredit(user.id);
+  if (!credit.ok) {
+    if (mode === "feedback") {
+      const feedback = rulesFeedback();
+      const completedAt = await savePractice(applicationId, (body as any).question, (body as any).answer, feedback, "rules", completed);
+      return NextResponse.json({ feedback, mode: "rules", aiLimited: true, remainingAi: 0, completed, interviewCompletedAt: completedAt });
+    }
+    return NextResponse.json({ questions: fallback, mode: "rules", job: application.job, aiLimited: true, remainingAi: 0 });
+  }
+
+  try {
+    const prompt = mode === "feedback"
+      ? `You are JobPilot AI Interview Coach. Review a candidate's interview answer using ONLY the supplied facts. Never invent experience, metrics, employers, tools, dates, responsibilities, or outcomes. If the answer contains unsupported claims, flag them rather than validating them. Give practical coaching, not hiring guarantees. JOB: ${application.job.title} at ${application.job.company}. Location: ${application.job.location}. Description: ${(application.job.description || "").slice(0, 7000)}. CAREER PROFILE: ${JSON.stringify(profileFacts).slice(0, 12000)}. QUESTION: ${(body as any).question}. CANDIDATE ANSWER: ${(body as any).answer}. Return JSON only: {"score":number,"verdict":string,"strengths":string[],"improvements":string[],"followUp":string}. Max 3 strengths/improvements.`
+      : `You are JobPilot AI Interview Coach. Generate interview practice questions for a candidate and a saved job. Use ONLY the supplied job description and career profile. Never assume a skill, employer, project, achievement, metric, technology, date, or responsibility that is not present. Questions should test fit, behavior, role skills, and motivation. Do not claim what the company will ask. JOB: ${application.job.title} at ${application.job.company}. Location: ${application.job.location}. Description: ${(application.job.description || "").slice(0, 8000)}. CAREER PROFILE: ${JSON.stringify(profileFacts).slice(0, 12000)}. Return JSON only: {"questions":[{"id":"q1","type":"behavioral|skills|role|experience|motivation","question":"...","why":"..."}]} with exactly 8 questions.`;
+
+    const result = await runAiText({
+      prompt,
+      temperature: mode === "feedback" ? 0.2 : 0.3,
+      maxTokens: mode === "feedback" ? 1200 : 1800
+    });
+
+    if (!result) throw new Error("AI provider unavailable");
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleanJson(result.text));
+    } catch {
+      throw new Error("AI returned invalid JSON");
+    }
+
+    if (mode === "feedback") {
+      const feedback = validFeedback(parsed) || rulesFeedback();
+      const savedMode = validFeedback(parsed) ? "ai" : "rules";
+      if (savedMode === "rules") await releaseAiCredit(user.id);
+      const completedAt = await savePractice(applicationId, (body as any).question, (body as any).answer, feedback, savedMode, completed);
+      return NextResponse.json({
+        feedback,
+        mode: savedMode,
+        provider: result.provider,
+        remainingAi: savedMode === "rules" ? credit.entitlements.remainingAi + 1 : credit.entitlements.remainingAi,
+        completed,
+        interviewCompletedAt: completedAt
+      });
+    }
+
+    const questions = validQuestions(parsed);
+    if (!questions.length) {
+      await releaseAiCredit(user.id);
+      return NextResponse.json({ questions: fallback, mode: "rules", provider: result.provider, job: application.job, remainingAi: credit.entitlements.remainingAi });
+    }
+
+    return NextResponse.json({
+      questions,
+      mode: "ai",
+      provider: result.provider,
+      job: application.job,
+      remainingAi: credit.entitlements.remainingAi
+    });
+  } catch {
+    await releaseAiCredit(user.id);
+    if (mode === "feedback") {
+      const feedback = rulesFeedback();
+      const completedAt = await savePractice(applicationId, (body as any).question, (body as any).answer, feedback, "rules", completed);
+      return NextResponse.json({
+        feedback,
+        mode: "rules",
+        remainingAi: Math.min(credit.entitlements.remainingAi + 1, credit.entitlements.plan.monthlyAiCredits),
+        completed,
+        interviewCompletedAt: completedAt
+      });
+    }
+    return NextResponse.json({
+      questions: fallback,
+      mode: "rules",
+      job: application.job,
+      remainingAi: Math.min(credit.entitlements.remainingAi + 1, credit.entitlements.plan.monthlyAiCredits)
+    });
+  }
 }
