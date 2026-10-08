@@ -30,5 +30,5 @@ test("Vercel uses the environment-aware build script", () => {
   const buildScript = fs.readFileSync(new URL("../scripts/vercel-build.mjs", import.meta.url), "utf8");
   assert.match(buildScript, /VERCEL_ENV === "production"/);
   assert.match(buildScript, /prisma",\s*"migrate",\s*"deploy/);
-  assert.match(buildScript, /npm",\s*"run",\s*"build/);
+  assert.match(buildScript, /run\("npm",\s*\["run",\s*"build"\]\)/);
 });
