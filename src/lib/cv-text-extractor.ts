@@ -15,6 +15,14 @@ export async function extractCvText(file: File) {
   if (file.type === "application/pdf") {
     // Load v2 at runtime to avoid TypeScript resolving stale v1 declarations
     // in a cached build. package.json pins the supported v2 release.
+    // PDF.js expects browser canvas globals that are not present in Vercel's Node runtime.
+    // Supply the native Node implementations before importing pdf-parse/PDF.js.
+    const canvas = await import("@napi-rs/canvas");
+    const runtimeGlobals = globalThis as unknown as Record<string, unknown>;
+    runtimeGlobals.DOMMatrix ??= canvas.DOMMatrix;
+    runtimeGlobals.ImageData ??= canvas.ImageData;
+    runtimeGlobals.Path2D ??= canvas.Path2D;
+
     const pdfModule = (await import("pdf-parse")) as unknown as PdfParseV2Module;
     const parser = new pdfModule.PDFParse({ data: buffer });
     try {
