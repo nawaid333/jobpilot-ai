@@ -3,9 +3,12 @@ import mammoth from "mammoth";
 const MAX_EXTRACTED_TEXT = 60_000;
 
 type PdfParseV2Module = {
-  PDFParse: new (options: { data: Buffer }) => {
-    getText(): Promise<{ text: string }>;
-    destroy(): Promise<void>;
+  PDFParse: {
+    setWorker(workerSrc?: string): string;
+    new (options: { data: Buffer }): {
+      getText(): Promise<{ text: string }>;
+      destroy(): Promise<void>;
+    };
   };
 };
 
@@ -24,6 +27,9 @@ export async function extractCvText(file: File) {
     runtimeGlobals.Path2D ??= canvas.Path2D;
 
     const pdfModule = (await import("pdf-parse")) as unknown as PdfParseV2Module;
+    // Vercel webpack omits PDF.js worker assets from the server bundle. Pin the
+    // matching pdf-parse worker explicitly so PDF.js does not resolve a missing chunk.
+    pdfModule.PDFParse.setWorker("https://cdn.jsdelivr.net/npm/pdf-parse@2.4.5/dist/pdf-parse/web/pdf.worker.mjs");
     const parser = new pdfModule.PDFParse({ data: buffer });
     try {
       const parsed = await parser.getText();
