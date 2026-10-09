@@ -18,6 +18,8 @@ if (process.env.NODE_ENV === "production") {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Keep the native canvas binding out of webpack; load it as a Node package at runtime.
+  serverExternalPackages: ["@napi-rs/canvas"],
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
