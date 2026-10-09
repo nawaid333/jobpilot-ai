@@ -25,6 +25,10 @@ test("Vercel install command is compatible with the repository dependency lock s
   }
 });
 
-test("Vercel keeps the production build explicit", () => {
-  assert.equal(vercelConfig.buildCommand, "npm run build");
+test("Vercel uses the environment-aware build script", () => {
+  assert.equal(vercelConfig.buildCommand, "npm run vercel-build");
+  const buildScript = fs.readFileSync(new URL("../scripts/vercel-build.mjs", import.meta.url), "utf8");
+  assert.match(buildScript, /VERCEL_ENV === "production"/);
+  assert.match(buildScript, /prisma",\s*"migrate",\s*"deploy/);
+  assert.match(buildScript, /run\("npm",\s*\["run",\s*"build"\]\)/);
 });

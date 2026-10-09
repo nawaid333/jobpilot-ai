@@ -2,16 +2,46 @@ import mammoth from "mammoth";
 
 const MAX_EXTRACTED_TEXT = 60_000;
 
+type PdfParseV2Module = {
+  PDFParse: {
+    setWorker(workerSrc?: string): string;
+    new (options: { data: Buffer }): {
+      getText(): Promise<{ text: string }>;
+      destroy(): Promise<void>;
+    };
+  };
+};
+
+type PdfWorkerModule = {
+  getData(): string;
+};
+
 export async function extractCvText(file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
 
   if (file.type === "application/pdf") {
-    // pdf-parse v1.1.1 executes test-data loading at module initialization.
-    // Keep it request-scoped so Next.js can collect route data during builds.
-    const pdfModule = await import("pdf-parse");
-    const pdfParse = pdfModule.default;
-    const parsed = await pdfParse(buffer);
-    return normalizeCvText(parsed.text);
+    // pdf-parse v2 needs its own worker configured for serverless Node runtimes.
+    // Load the bundled worker as a data: URL; remote https workers are not supported
+    // by Node's ESM worker loader in Vercel functions.
+    const workerModule = (await import("pdf-parse/worker")) as unknown as PdfWorkerModule;
+    const workerDataUrl = workerModule.getData();
+
+    // Provide native canvas globals before importing PDF.js.
+    const canvas = await import("@napi-rs/canvas");
+    const runtimeGlobals = globalThis as unknown as Record<string, unknown>;
+    runtimeGlobals.DOMMatrix ??= canvas.DOMMatrix;
+    runtimeGlobals.ImageData ??= canvas.ImageData;
+    runtimeGlobals.Path2D ??= canvas.Path2D;
+
+    const pdfModule = (await import("pdf-parse")) as unknown as PdfParseV2Module;
+    pdfModule.PDFParse.setWorker(workerDataUrl);
+    const parser = new pdfModule.PDFParse({ data: buffer });
+    try {
+      const parsed = await parser.getText();
+      return normalizeCvText(parsed.text);
+    } finally {
+      await parser.destroy();
+    }
   }
 
   if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
