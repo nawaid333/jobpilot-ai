@@ -49,6 +49,30 @@ function parseJson(text: string) {
   }
 }
 
+async function readUploadFormData(request: Request) {
+  const contentType = request.headers.get("content-type") || "";
+  if (/^multipart\/form-data\b/i.test(contentType)) {
+    return request.formData();
+  }
+
+  // Some proxy/runtime paths have been observed to expose application/json
+  // even though the browser sent a multipart body. Recover only when the raw
+  // body clearly starts with a valid multipart boundary; never guess for JSON.
+  const body = await request.arrayBuffer();
+  const prefix = new TextDecoder().decode(body.slice(0, 512));
+  const firstLine = prefix.split(/\r?\n/, 1)[0];
+  const boundary = firstLine.startsWith("--") ? firstLine.slice(2) : "";
+  if (!boundary || !/^[A-Za-z0-9'()+_,.\/:=?-]{1,200}$/.test(boundary)) {
+    throw new TypeError(
+      `Expected multipart/form-data upload; received ${contentType || "no Content-Type"} and body did not start with a multipart boundary.`,
+    );
+  }
+
+  return new Response(body, {
+    headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+  }).formData();
+}
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -77,7 +101,7 @@ export async function POST(request: Request) {
   let stage = "reading-upload";
 
   try {
-    const formData = await request.formData();
+    const formData = await readUploadFormData(request);
     const file = formData.get("file");
 
     if (!(file instanceof File)) return NextResponse.json({ error: "Please upload a CV file." }, { status: 400 });
