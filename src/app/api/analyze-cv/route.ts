@@ -145,6 +145,18 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ error: `CV analysis failed at step: ${stage}. Please retry once; if it repeats, share this exact step with support.` }, { status: 500 });
+    const debug = process.env.VERCEL_ENV !== "production"
+      ? {
+          errorName: error instanceof Error ? error.name : "UnknownError",
+          errorMessage: message || "No error message provided",
+          contentType: request.headers.get("content-type"),
+          contentLength: request.headers.get("content-length"),
+        }
+      : undefined;
+
+    return NextResponse.json({
+      error: `CV analysis failed at step: ${stage}. Please retry once; if it repeats, share this exact step with support.`,
+      ...(debug ? { debug } : {}),
+    }, { status: 500 });
   }
 }
