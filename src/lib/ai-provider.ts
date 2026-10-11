@@ -14,7 +14,7 @@ type ChatArgs = {
 
 const DEFAULT_MODAL_BASE_URL = "https://api.modal.com/v1";
 const DEFAULT_MODAL_MODEL = "auto";
-const DEFAULT_OPENAI_MODEL = "gpt-6-luna";
+const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
 
 function normalizeBaseUrl(value: string) {
   return value.trim().replace(/\/$/, "");
