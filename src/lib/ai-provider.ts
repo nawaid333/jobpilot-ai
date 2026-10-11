@@ -14,7 +14,7 @@ type ChatArgs = {
 
 const DEFAULT_MODAL_BASE_URL = "https://api.modal.com/v1";
 const DEFAULT_MODAL_MODEL = "auto";
-const DEFAULT_OPENAI_MODEL = "gpt-5.6-luna";
+const DEFAULT_OPENAI_MODEL = "gpt-6-luna";
 
 function normalizeBaseUrl(value: string) {
   return value.trim().replace(/\/$/, "");
@@ -24,12 +24,35 @@ function timeoutSignal(ms: number) {
   return AbortSignal.timeout(ms);
 }
 
+function getProviderErrorDetails(body: string) {
+  if (!body.trim()) return { responseBody: "empty" };
+
+  try {
+    const parsed = JSON.parse(body) as {
+      error?: { type?: unknown; code?: unknown; message?: unknown };
+    };
+    const error = parsed.error;
+    if (error && typeof error === "object") {
+      return {
+        ...(typeof error.type === "string" ? { errorType: error.type.slice(0, 80) } : {}),
+        ...(typeof error.code === "string" ? { errorCode: error.code.slice(0, 80) } : {}),
+        ...(typeof error.message === "string" ? { errorMessage: error.message.slice(0, 160) } : {}),
+      };
+    }
+  } catch {
+    // Do not log the raw provider response; it may contain request-specific data.
+  }
+
+  return { responseBody: "non-json", responseLength: body.length };
+}
+
 async function callChatCompletions(
   baseUrl: string,
   apiKey: string,
   model: string,
   args: ChatArgs,
 ): Promise<string | null> {
+  const provider = baseUrl.includes("modal") ? "modal" : "openai";
   const response = await fetch(`${normalizeBaseUrl(baseUrl)}/chat/completions`, {
     method: "POST",
     headers: {
@@ -45,19 +68,50 @@ async function callChatCompletions(
     signal: timeoutSignal(25_000),
   });
 
+  const responseBody = await response.text();
   if (!response.ok) {
     console.error("AI provider request failed", {
-      provider: baseUrl.includes("modal") ? "modal" : "openai",
+      provider,
       status: response.status,
+      ...getProviderErrorDetails(responseBody),
     });
     return null;
   }
 
-  const data = await response.json() as {
+  if (!responseBody.trim()) {
+    console.error("AI provider returned an empty successful response", {
+      provider,
+      status: response.status,
+      contentType: response.headers.get("content-type"),
+    });
+    return null;
+  }
+
+  let data: {
     choices?: Array<{ message?: { content?: string | null } }>;
   };
+  try {
+    data = JSON.parse(responseBody) as typeof data;
+  } catch {
+    console.error("AI provider returned invalid JSON", {
+      provider,
+      status: response.status,
+      contentType: response.headers.get("content-type"),
+      responseLength: responseBody.length,
+    });
+    return null;
+  }
+
   const text = data.choices?.[0]?.message?.content;
-  return typeof text === "string" && text.trim() ? text.trim() : null;
+  if (typeof text !== "string" || !text.trim()) {
+    console.error("AI provider response contained no message text", {
+      provider,
+      status: response.status,
+      hasChoices: Array.isArray(data.choices) && data.choices.length > 0,
+    });
+    return null;
+  }
+  return text.trim();
 }
 
 /**
@@ -75,7 +129,10 @@ export async function runAiText(args: ChatArgs): Promise<AiResult | null> {
       const text = await callChatCompletions(modalBaseUrl, modalKey, modalModel, args);
       if (text) return { text, provider: "modal", model: modalModel };
     } catch (error) {
-      console.error("Modal AI request failed", error);
+      console.error("Modal AI request failed", {
+        errorName: error instanceof Error ? error.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message.slice(0, 160) : "Unknown error",
+      });
     }
   }
 
@@ -87,7 +144,10 @@ export async function runAiText(args: ChatArgs): Promise<AiResult | null> {
     const text = await callChatCompletions("https://api.openai.com/v1", openAiKey, openAiModel, args);
     if (text) return { text, provider: "openai", model: openAiModel };
   } catch (error) {
-    console.error("OpenAI AI request failed", error);
+    console.error("OpenAI AI request failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      errorMessage: error instanceof Error ? error.message.slice(0, 160) : "Unknown error",
+    });
   }
 
   return null;
