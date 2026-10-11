@@ -41,14 +41,34 @@ export default function AnalyzePage() {
     if (!file) return;
     setAnalyzing(true); setError("");
     try {
-      const body = new FormData(); body.append("file", file);
-      const response = await fetch("/api/analyze-cv", { method: "POST", body });
-      const data = await response.json();
-      if (!response.ok) {
-        const detail = typeof data.providerMessage === "string" ? data.providerMessage : "";
-        throw new Error(detail ? (data.error || "Analysis failed.") + " — " + detail : (data.error || "Analysis failed."));
-      }
-      setAnalysis(data.analysis);
+      const body = new FormData();
+      body.append("file", file);
+
+      // Use XHR for this upload and let the browser generate the multipart boundary.
+      // Do not set Content-Type manually for FormData.
+      const data = await new Promise<Record<string, unknown>>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/analyze-cv");
+        xhr.responseType = "json";
+        xhr.onload = () => {
+          const result = xhr.response && typeof xhr.response === "object"
+            ? xhr.response as Record<string, unknown>
+            : {};
+          if (xhr.status < 200 || xhr.status >= 300) {
+            const detail = typeof result.providerMessage === "string" ? result.providerMessage : "";
+            const message = typeof result.error === "string" ? result.error : "Analysis failed.";
+            reject(new Error(detail ? message + " — " + detail : message));
+            return;
+          }
+          resolve(result);
+        };
+        xhr.onerror = () => reject(new Error("Upload failed. Check your connection and try again."));
+        xhr.ontimeout = () => reject(new Error("CV upload timed out. Please try again."));
+        xhr.timeout = 60_000;
+        xhr.send(body);
+      });
+
+      setAnalysis(data.analysis as Analysis);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
     } finally { setAnalyzing(false); }

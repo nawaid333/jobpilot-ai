@@ -49,6 +49,30 @@ function parseJson(text: string) {
   }
 }
 
+async function readUploadFormData(request: Request) {
+  const contentType = request.headers.get("content-type") || "";
+  if (/^multipart\/form-data\b/i.test(contentType)) {
+    return request.formData();
+  }
+
+  // Some proxy/runtime paths have been observed to expose application/json
+  // even though the browser sent a multipart body. Recover only when the raw
+  // body clearly starts with a valid multipart boundary; never guess for JSON.
+  const body = await request.arrayBuffer();
+  const prefix = new TextDecoder().decode(body.slice(0, 512));
+  const firstLine = prefix.split(/\r?\n/, 1)[0];
+  const boundary = firstLine.startsWith("--") ? firstLine.slice(2) : "";
+  if (!boundary || !/^[A-Za-z0-9'()+_,.\/:=?-]{1,200}$/.test(boundary)) {
+    throw new TypeError(
+      `Expected multipart/form-data upload; received ${contentType || "no Content-Type"} and body did not start with a multipart boundary.`,
+    );
+  }
+
+  return new Response(body, {
+    headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+  }).formData();
+}
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -74,9 +98,10 @@ export async function POST(request: Request) {
   }
 
   let creditReserved = false;
+  let stage = "reading-upload";
 
   try {
-    const formData = await request.formData();
+    const formData = await readUploadFormData(request);
     const file = formData.get("file");
 
     if (!(file instanceof File)) return NextResponse.json({ error: "Please upload a CV file." }, { status: 400 });
@@ -84,6 +109,7 @@ export async function POST(request: Request) {
     if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: "File must be 8 MB or smaller." }, { status: 400 });
     if (file.name.length > 180) return NextResponse.json({ error: "CV filename is too long." }, { status: 400 });
 
+    stage = "reserving-ai-credit";
     const credit = await consumeAiCredit(user.id);
     if (!credit.ok) {
       return NextResponse.json(
@@ -93,6 +119,7 @@ export async function POST(request: Request) {
     }
     creditReserved = true;
 
+    stage = "extracting-cv-text";
     const cvText = await extractCvText(file);
     if (cvText.length < 80) {
       await releaseAiCredit(user.id);
@@ -100,6 +127,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "The CV does not contain enough readable text to analyze." }, { status: 422 });
     }
 
+    stage = "calling-ai-provider";
     const aiResult = await runAiText({
       prompt: ANALYSIS_PROMPT + cvText,
       maxTokens: 2600,
@@ -112,6 +140,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "CV analysis failed because the AI service is unavailable." }, { status: 502 });
     }
 
+    stage = "validating-ai-response";
     let analysis: unknown;
     try {
       analysis = parseJson(aiResult.text);
@@ -129,7 +158,7 @@ export async function POST(request: Request) {
       remainingAi: credit.entitlements.remainingAi,
     });
   } catch (error) {
-    console.error("CV analysis error", error);
+    console.error("CV analysis error", { stage, error });
     if (creditReserved) await releaseAiCredit(user.id);
 
     const message = error instanceof Error ? error.message : "";
@@ -140,6 +169,18 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ error: "Unexpected server error while analyzing the CV." }, { status: 500 });
+    const debug = process.env.VERCEL_ENV !== "production"
+      ? {
+          errorName: error instanceof Error ? error.name : "UnknownError",
+          errorMessage: message || "No error message provided",
+          contentType: request.headers.get("content-type"),
+          contentLength: request.headers.get("content-length"),
+        }
+      : undefined;
+
+    return NextResponse.json({
+      error: `CV analysis failed at step: ${stage}. Please retry once; if it repeats, share this exact step with support.`,
+      ...(debug ? { debug } : {}),
+    }, { status: 500 });
   }
 }
